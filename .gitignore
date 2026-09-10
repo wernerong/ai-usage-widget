@@ -1,0 +1,21 @@
+# Generated binaries and build state
+**/bin/
+**/obj/
+app/
+*.zip
+.vs/
+*.user
+
+# Local credentials, configuration, and usage diagnostics
+auth.json
+settings.json
+status.json
+diagnostics.json
+checks.txt
+render-checks.txt
+render-error.txt
+widget-preview.png
+cards-after-switch.png
+.env
+.env.*
+work/
