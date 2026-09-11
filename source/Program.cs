@@ -8,6 +8,7 @@ namespace UsageWidget;
 
 internal static class Program
 {
+    internal static string AppVersion => typeof(Program).Assembly.GetName().Version!.ToString(3);
     [STAThread]
     static void Main(string[] args)
     {
@@ -272,9 +273,22 @@ internal sealed class Widget : Form
         var pin = new ToolStripMenuItem("Always on top") { Checked = prefs.Pinned, CheckOnClick = true };
         pin.CheckedChanged += (_, _) => { prefs.Pinned = TopMost = pin.Checked; prefs.Save(); };
         menu.Items.Add(pin);
-        var used = new ToolStripMenuItem("Show percentage used") { Checked = prefs.ShowUsed, CheckOnClick = true };
-        used.CheckedChanged += (_, _) => { prefs.ShowUsed = used.Checked; prefs.Save(); Invalidate(); };
-        menu.Items.Add(used);
+        var percentage = new ToolStripMenuItem("Percentage display");
+        var remaining = new ToolStripMenuItem("Percentage remaining") { Checked = !prefs.ShowUsed };
+        var used = new ToolStripMenuItem("Percentage used") { Checked = prefs.ShowUsed };
+        void SelectPercentage(bool showUsed)
+        {
+            prefs.ShowUsed = showUsed;
+            remaining.Checked = !showUsed;
+            used.Checked = showUsed;
+            prefs.Save();
+            UpdateCompactSurface();
+            Invalidate();
+        }
+        remaining.Click += (_, _) => SelectPercentage(false);
+        used.Click += (_, _) => SelectPercentage(true);
+        percentage.DropDownItems.AddRange([remaining, used]);
+        menu.Items.Add(percentage);
         var opacity = new ToolStripMenuItem("Opacity");
         foreach (var percent in new[] { 100, 97, 85, 70 })
             opacity.DropDownItems.Add($"{percent}%", null, (_, _) => { prefs.Opacity = percent / 100.0; if (prefs.Compact) UpdateCompactSurface(); else Opacity = prefs.Opacity; prefs.Save(); });
@@ -302,6 +316,7 @@ internal sealed class Widget : Form
             Location = new(area.Right - Width - 18, area.Bottom - Height - 18); SavePosition(); Show();
         });
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(new ToolStripMenuItem($"AI Usage Widget v{Program.AppVersion}") { Enabled = false });
         menu.Items.Add("Exit", null, (_, _) => Quit());
     }
     private static void OpenUrl(string url) { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { } }

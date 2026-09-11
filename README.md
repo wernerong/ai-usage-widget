@@ -2,6 +2,8 @@
 
 A lightweight Windows desktop widget for checking Codex and Grok usage without opening their dashboards.
 
+Current version: **1.4.0**. See [CHANGELOG.md](CHANGELOG.md) for release history. The installed version appears at the bottom of the widget or tray menu.
+
 ## Features
 
 - Select subscriptions from the menu: show Codex, Grok, or both.
@@ -48,6 +50,7 @@ To uninstall, exit the widget and run `Uninstall.ps1`. CLI logins and widget pre
 | --- | --- |
 | Move | Drag a round badge or the detailed header |
 | Select providers | Right-click → Subscriptions |
+| Choose used or remaining | Right-click → Percentage display |
 | Switch layout | Right-click → Layout |
 | Expand badges | Double-click a badge |
 | See all readings and reset dates | Hover the provider |
@@ -97,3 +100,7 @@ This project is not affiliated with or endorsed by OpenAI or xAI.
 ## Adding a provider
 
 Provider definitions in `source/Program.cs` supply a stable settings ID, display name, usage URL, description, accent, quota labels, free-reset capability, default selection, and a cancellable reader returning `Reading`. Add its embedded logo in `source/Assets`. Menus, selection, refresh scheduling, cards, and tooltips use this registry. New integrations should default to opt-in. Compact badges currently support one or two quotas; other quota shapes need a corresponding badge layout. Claude is not yet supported.
+
+## Versioning
+
+The `<Version>` value in `source/UsageWidget.csproj` is the source of truth for the application and assembly version. Use semantic versioning: major for breaking changes, minor for new features, and patch for fixes. Each release updates that value, the current version above, and `CHANGELOG.md`, then receives an annotated Git tag named `vMAJOR.MINOR.PATCH` on the release commit. Tags identify source releases; they do not automatically publish installers or GitHub releases.
