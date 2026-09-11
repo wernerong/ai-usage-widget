@@ -34,6 +34,16 @@ internal static class Checks
         Check(CodexProvider.Clamp(101) == 100 && CodexProvider.Clamp(-1) == 0 && CodexProvider.Clamp(null) == null, "Clamp valid values only");
         var state = new ProviderState("Test") { Reading = g, Error = "Network" };
         Check(state.Stale && state.Reading == g, "Failure preserves last result and marks stale");
+        var definition = new ProviderDefinition("codex", "Codex", "", "", Color.Black, ["5 hours", "Weekly"], true, true,
+            _ => Task.FromResult(codex));
+        var preferences = JsonSerializer.Deserialize<Preferences>("{\"Compact\":true}")!;
+        Check(preferences.IsEnabled(definition), "Legacy preferences retain enabled subscriptions");
+        preferences.SetEnabled(definition, false);
+        var restored = JsonSerializer.Deserialize<Preferences>(JsonSerializer.Serialize(preferences))!;
+        Check(!restored.IsEnabled(definition), "Disabled subscription survives settings round trip");
+        Check(!restored.IsEnabled(definition with { Id = "future", EnabledByDefault = false }), "Future integrations can default to opt-in");
+        restored.SetEnabled(definition, true);
+        Check(restored.IsEnabled(definition), "Subscription can be re-enabled");
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "checks.txt"), $"PASS: {count} checks\n");
     }
 }

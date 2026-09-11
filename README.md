@@ -4,6 +4,7 @@ A lightweight Windows desktop widget for checking Codex and Grok usage without o
 
 ## Features
 
+- Select subscriptions from the menu: show Codex, Grok, or both.
 - Two layouts: compact round badges and detailed cards.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
@@ -19,6 +20,8 @@ A lightweight Windows desktop widget for checking Codex and Grok usage without o
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build. The default build requires the .NET 10 Windows Desktop Runtime to run.
 - Codex installed and signed in with a ChatGPT account that exposes account rate limits.
 - Grok CLI / Build signed in using OAuth (`grok login`) for Grok usage.
+
+Choose **Subscriptions** in the widget or tray menu to toggle providers. Both start enabled for compatibility, and at least one stays selected. Your selection is remembered and both layouts resize automatically. Disabled providers stop refreshing and disappear from tooltips, tray summaries, usage links, and health snapshots.
 
 Each provider refreshes independently. A missing login for one provider does not prevent the other from updating.
 
@@ -44,6 +47,7 @@ To uninstall, exit the widget and run `Uninstall.ps1`. CLI logins and widget pre
 | Action | Control |
 | --- | --- |
 | Move | Drag a round badge or the detailed header |
+| Select providers | Right-click → Subscriptions |
 | Switch layout | Right-click → Layout |
 | Expand badges | Double-click a badge |
 | See all readings and reset dates | Hover the provider |
@@ -89,3 +93,7 @@ Platform icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons). Th
 References: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Grok billing implementation](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
 
 This project is not affiliated with or endorsed by OpenAI or xAI.
+
+## Adding a provider
+
+Provider definitions in `source/Program.cs` supply a stable settings ID, display name, usage URL, description, accent, quota labels, free-reset capability, default selection, and a cancellable reader returning `Reading`. Add its embedded logo in `source/Assets`. Menus, selection, refresh scheduling, cards, and tooltips use this registry. New integrations should default to opt-in. Compact badges currently support one or two quotas; other quota shapes need a corresponding badge layout. Claude is not yet supported.

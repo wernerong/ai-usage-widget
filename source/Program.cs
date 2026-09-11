@@ -16,7 +16,9 @@ internal static class Program
         if (args.Contains("--diagnose"))
         {
             using var grok = new GrokProvider();
-            var results = Task.WhenAll(Diagnostic("Codex", () => CodexProvider.Read(CancellationToken.None)), Diagnostic("Grok", () => grok.Read(CancellationToken.None))).GetAwaiter().GetResult();
+            var preferences = Preferences.Load();
+            var results = Task.WhenAll(Widget.CreateProviders(grok).Where(preferences.IsEnabled)
+                .Select(provider => Diagnostic(provider.Name, () => provider.Read(CancellationToken.None)))).GetAwaiter().GetResult();
             File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "diagnostics.json"), JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
             return;
         }
@@ -34,6 +36,14 @@ internal static class Program
 
 internal sealed class Preferences
 {
+    // Missing entries remain enabled for existing providers; future providers opt in.
+    public Dictionary<string, bool> Providers { get; set; } = new();
+    public bool IsEnabled(ProviderDefinition provider) => Providers?.GetValueOrDefault(provider.Id, provider.EnabledByDefault) ?? provider.EnabledByDefault;
+    public void SetEnabled(ProviderDefinition provider, bool enabled)
+    {
+        Providers ??= new();
+        Providers[provider.Id] = enabled;
+    }
     public int? X { get; set; }
     public int? Y { get; set; }
     public bool Pinned { get; set; } = true;
@@ -59,6 +69,13 @@ internal sealed class Preferences
     }
 }
 
+internal sealed record ProviderDefinition(string Id, string Name, string UsageUrl, string Description,
+    Color Accent, string[] QuotaLabels, bool HasFreeResets, bool EnabledByDefault,
+    Func<CancellationToken, Task<Reading>> Read)
+{
+    public int CardHeight => 54 + 53 * QuotaLabels.Length;
+}
+
 internal sealed class ProviderState(string name)
 {
     public string Name { get; } = name;
@@ -72,7 +89,13 @@ internal sealed class Widget : Form
 {
     private readonly Preferences prefs = Preferences.Load();
     private readonly GrokProvider grok = new();
-    private readonly ProviderState codexState = new("Codex"), grokState = new("Grok");
+    private readonly ProviderDefinition[] providers;
+    private readonly Dictionary<string, ProviderState> states = new();
+    private readonly Dictionary<string, Bitmap> logos = new();
+    private readonly Dictionary<string, CancellationTokenSource> requests = new();
+    private ProviderDefinition[] EnabledProviders => providers.Where(prefs.IsEnabled).ToArray();
+    private int CardsHeight => 58 + EnabledProviders.Sum(p => p.CardHeight + 8);
+    private bool refreshRequested;
     private readonly CancellationTokenSource stop = new();
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 1000 };
     private readonly NotifyIcon tray;
@@ -85,16 +108,27 @@ internal sealed class Widget : Form
     private DateTimeOffset nextRefresh = DateTimeOffset.MinValue;
     private string tipText = "";
     private int hover = -1;
-    private readonly Bitmap codexLogo = LoadLogo("codex"), grokLogo = LoadLogo("grok");
     private static readonly Color Bg = Color.FromArgb(242, 243, 246), Card = Color.FromArgb(253, 253, 254), TextMain = Color.FromArgb(30, 32, 38), Muted = Color.FromArgb(113, 118, 129), Teal = Color.FromArgb(54, 117, 196), Blue = Color.FromArgb(128, 116, 170), Amber = Color.FromArgb(175, 111, 30);
     private float ScaleFactor => DeviceDpi / 96f;
 
+    internal static ProviderDefinition[] CreateProviders(GrokProvider grok) => [
+            new("codex", "Codex", "https://chatgpt.com/codex/settings/usage", "live Codex account limits", Teal, ["5 hours", "Weekly"], true, true, CodexProvider.Read),
+            new("grok", "Grok", "https://grok.com?_s=usage", "Grok CLI billing", Blue, ["Weekly"], false, true, grok.Read)
+        ];
+
     public Widget(string[] args, EventWaitHandle showRequest)
     {
+        providers = CreateProviders(grok);
+        if (!EnabledProviders.Any()) prefs.SetEnabled(providers[0], true);
+        foreach (var provider in providers)
+        {
+            states[provider.Id] = new(provider.Name);
+            logos[provider.Id] = LoadLogo(provider.Id);
+        }
         this.args = args;
         this.showRequest = showRequest;
         Text = "AI Usage Widget";
-        AccessibleName = "AI usage: Codex and Grok";
+        AccessibleName = "AI Usage Widget";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = prefs.Pinned;
@@ -129,10 +163,31 @@ internal sealed class Widget : Form
             await RefreshUsage();
             if (args.Contains("--render-check"))
             {
+                var originalSelection = providers.ToDictionary(p => p.Id, prefs.IsEnabled);
+                foreach (var provider in providers) await SetProviderEnabled(provider, true);
+                foreach (var only in providers)
+                {
+                    foreach (var provider in providers.Where(p => p != only)) await SetProviderEnabled(provider, false);
+                    SetCompact(false);
+                    if (ClientSize.Height != (int)((58 + only.CardHeight + 8) * ScaleFactor) || !CardDetails(70).StartsWith(only.Name))
+                        throw new InvalidOperationException("Single-provider card layout or tooltip is incorrect.");
+                    using (var single = new Bitmap(Width, Height))
+                    {
+                        DrawToBitmap(single, new Rectangle(Point.Empty, Size));
+                        single.Save(Path.Combine(AppContext.BaseDirectory, only.Id + "-cards.png"), ImageFormat.Png);
+                    }
+                    SetCompact(true);
+                    if (ClientSize.Width != (int)(96 * ScaleFactor)) throw new InvalidOperationException("Single badge width is incorrect.");
+                    using (var single = RenderBadges()) single.Save(Path.Combine(AppContext.BaseDirectory, only.Id + "-badge.png"), ImageFormat.Png);
+                    await SetProviderEnabled(only, false);
+                    if (!prefs.IsEnabled(only)) throw new InvalidOperationException("Last subscription can be disabled.");
+                    foreach (var provider in providers) await SetProviderEnabled(provider, true);
+                }
+                foreach (var provider in providers.Where(p => !originalSelection[p.Id])) await SetProviderEnabled(provider, false);
                 var savedOpacity = prefs.Opacity;
                 prefs.Opacity = 1;
                 SetCompact(false);
-                if (AlphaSurface.IsLayered(Handle) || ClientSize.Height != (int)(342 * ScaleFactor))
+                if (AlphaSurface.IsLayered(Handle) || ClientSize.Height != (int)(CardsHeight * ScaleFactor))
                     throw new InvalidOperationException("Cards retained the badge surface.");
                 using (var cards = new Bitmap(Width, Height))
                 {
@@ -152,7 +207,7 @@ internal sealed class Widget : Form
                     for (var x = 0; x < sample.Width; x++)
                         if (sample.GetPixel(x, y).A is > 0 and < 255) partial++;
                 if (sample.GetPixel(0, 0).A != 0 || partial < 100) throw new InvalidOperationException("Transparent edge rendering failed.");
-                File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), $"PASS: round-to-cards clears layered surface at 100% opacity; repeated layout switching at saved opacity; startup, hide/show, and {partial} antialiased alpha pixels.\n");
+                File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), $"PASS: single-provider cards and badges, tooltip mapping, selection guard; round-to-cards clears layered surface at 100% opacity; repeated layout switching at saved opacity; startup, hide/show, and {partial} antialiased alpha pixels.\n");
             }
             if (args.Contains("--render") || args.Contains("--render-check"))
             {
@@ -192,6 +247,20 @@ internal sealed class Widget : Form
         menu.Padding = new Padding(6);
         menu.Items.Add("Show / hide widget", null, (_, _) => ToggleVisible());
         menu.Items.Add("Refresh now", null, async (_, _) => await RefreshUsage());
+        var subscriptions = new ToolStripMenuItem("Subscriptions");
+        foreach (var provider in providers)
+        {
+            var item = new ToolStripMenuItem(provider.Name) { Checked = prefs.IsEnabled(provider) };
+            item.Click += async (_, _) => await SetProviderEnabled(provider, !prefs.IsEnabled(provider));
+            menu.Opening += (_, _) =>
+            {
+                item.Checked = prefs.IsEnabled(provider);
+                item.Enabled = !item.Checked || EnabledProviders.Length > 1;
+                item.ToolTipText = item.Enabled ? "Show and refresh this subscription" : "Keep at least one subscription selected";
+            };
+            subscriptions.DropDownItems.Add(item);
+        }
+        menu.Items.Add(subscriptions);
         var layout = new ToolStripMenuItem("Layout");
         var round = new ToolStripMenuItem("Round badges (compact)");
         var cards = new ToolStripMenuItem("Detailed cards");
@@ -222,8 +291,11 @@ internal sealed class Widget : Form
         };
         menu.Items.Add(startup);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Open Codex usage", null, (_, _) => OpenUrl("https://chatgpt.com/codex/settings/usage"));
-        menu.Items.Add("Open Grok usage", null, (_, _) => OpenUrl("https://grok.com?_s=usage"));
+        foreach (var provider in providers)
+        {
+            var link = menu.Items.Add($"Open {provider.Name} usage", null, (_, _) => OpenUrl(provider.UsageUrl));
+            menu.Opening += (_, _) => link.Visible = prefs.IsEnabled(provider);
+        }
         menu.Items.Add("Reset position", null, (_, _) =>
         {
             var area = Screen.PrimaryScreen!.WorkingArea;
@@ -246,6 +318,28 @@ internal sealed class Widget : Form
     }
     private void SavePosition() { prefs.X = Left; prefs.Y = Top; prefs.Save(); }
 
+    private async Task SetProviderEnabled(ProviderDefinition provider, bool enabled)
+    {
+        if (!enabled && EnabledProviders.Length <= 1) return;
+        prefs.SetEnabled(provider, enabled);
+        if (!enabled)
+        {
+            if (requests.TryGetValue(provider.Id, out var request)) request.Cancel();
+            states[provider.Id] = new(provider.Name);
+        }
+        tips.SetToolTip(this, ""); tipText = ""; hover = -1;
+        ApplyLayout(true); ClampPosition(); SavePosition(); Invalidate();
+        UpdateSummary();
+        refreshRequested = true;
+        await RefreshUsage();
+    }
+    private void UpdateSummary()
+    {
+        var enabled = EnabledProviders;
+        var summary = string.Join(" | ", enabled.Select(p => p.Name + " " + string.Join(" / ", p.QuotaLabels.Select((_, i) => Short(states[p.Id], i)))));
+        tray.Text = summary.Length > 127 ? summary[..124] + "…" : summary;
+        AccessibleDescription = string.Join("\n", enabled.Select(p => Details(states[p.Id])));
+    }
     private void SetCompact(bool compact)
     {
         prefs.Compact = compact;
@@ -255,7 +349,7 @@ internal sealed class Widget : Form
     private void ApplyLayout(bool keepBottomRight)
     {
         var right = Right; var bottom = Bottom;
-        ClientSize = new((int)((prefs.Compact ? 196 : 320) * ScaleFactor), (int)((prefs.Compact ? 96 : 342) * ScaleFactor));
+        ClientSize = new((int)((prefs.Compact ? EnabledProviders.Length * 100 - 4 : 320) * ScaleFactor), (int)((prefs.Compact ? 96 : CardsHeight) * ScaleFactor));
         var previous = Region;
         Region = null;
         previous?.Dispose();
@@ -323,18 +417,23 @@ internal sealed class Widget : Form
     private async Task RefreshUsage()
     {
         if (busy || closing) return;
-        busy = true; Invalidate();
-        await Task.WhenAll(Update(codexState, () => CodexProvider.Read(stop.Token)), Update(grokState, () => grok.Read(stop.Token)));
+        busy = true; refreshRequested = false; Invalidate();
+        await Task.WhenAll(EnabledProviders.Select(async provider =>
+        {
+            using var request = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+            requests[provider.Id] = request;
+            try { await Update(states[provider.Id], () => provider.Read(request.Token)); }
+            finally { requests.Remove(provider.Id); }
+        }));
         if (closing) return;
         busy = false;
-        nextRefresh = DateTimeOffset.Now.AddMinutes(1);
-        tray.Text = $"Codex {Short(codexState, 0)} / {Short(codexState, 1)} | Grok {Short(grokState, 0)}";
-        AccessibleDescription = Details(codexState) + "\n" + Details(grokState);
+        nextRefresh = refreshRequested ? DateTimeOffset.MinValue : DateTimeOffset.Now.AddMinutes(1);
+        UpdateSummary();
         // A local, credential-free health snapshot makes unattended refreshes diagnosable.
         try
         {
             Directory.CreateDirectory(Preferences.Folder);
-            var health = new { Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId, Layout = prefs.Compact ? "round" : "cards", WindowVisible = Visible, AlwaysOnTop = TopMost, WindowBounds = new { Left, Top, Width, Height }, Codex = codexState.Reading, CodexError = codexState.Error, Grok = grokState.Reading, GrokError = grokState.Error };
+            var health = new { Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId, Layout = prefs.Compact ? "round" : "cards", WindowVisible = Visible, AlwaysOnTop = TopMost, WindowBounds = new { Left, Top, Width, Height }, Providers = EnabledProviders.ToDictionary(p => p.Id, p => new { states[p.Id].Reading, states[p.Id].Error }) };
             var healthPath = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(healthPath + ".tmp", JsonSerializer.Serialize(health, new JsonSerializerOptions { WriteIndented = true }));
             File.Move(healthPath + ".tmp", healthPath, true);
@@ -381,35 +480,40 @@ internal sealed class Widget : Form
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         if (prefs.Compact) { PaintBadges(g); return; }
-        Round(g, new(0.5f, 0.5f, 319, 341), 20, Bg, Color.FromArgb(217, 221, 229));
+        Round(g, new(0.5f, 0.5f, 319, CardsHeight - 1), 20, Bg, Color.FromArgb(217, 221, 229));
         Txt(g, "Usage", 18, 11, 20, TextMain, true);
         Round(g, new(86, 17, 64, 20), 10, Color.FromArgb(228, 231, 237));
         Txt(g, prefs.ShowUsed ? "% used" : "% left", 101, 20, 10, Muted, true);
         Txt(g, busy ? "···" : "↻", 224, 10, 23, hover == 0 ? TextMain : Muted);
         Txt(g, "—", 256, 12, 19, hover == 1 ? TextMain : Muted);
         Txt(g, "⋮", 288, 10, 23, hover == 2 ? TextMain : Muted);
-        Round(g, new(12, 50, 296, 160), 16, Color.FromArgb(224, 227, 233));
-        Round(g, new(12, 48, 296, 160), 16, Card, Color.FromArgb(233, 235, 240));
-        Header(g, codexState, 64, Teal);
-        Row(g, codexState.Reading?.Quotas.ElementAtOrDefault(0) ?? new Quota("5 hours", null, null), 89, Teal, codexState.Stale);
-        Row(g, codexState.Reading?.Quotas.ElementAtOrDefault(1) ?? new Quota("Weekly", null, null), 140, Teal, codexState.Stale);
-        Txt(g, codexState.Reading?.Balance ?? "Connecting to Codex…", 24, 190, 10, Muted);
-        var resets = codexState.Reading?.FreeResets;
-        Round(g, new(205, 186, 91, 17), 8, Color.FromArgb(235, 241, 250));
-        Txt(g, resets is { } count ? $"Free resets  {count}" : "Free resets  —", 214, 189, 9,
-            codexState.Stale ? Amber : resets > 0 ? Teal : Muted, resets > 0);
-        Round(g, new(12, 218, 296, 107), 16, Color.FromArgb(224, 227, 233));
-        Round(g, new(12, 216, 296, 107), 16, Card, Color.FromArgb(233, 235, 240));
-        Header(g, grokState, 232, Blue);
-        Row(g, grokState.Reading?.Quotas.FirstOrDefault() ?? new Quota("Weekly", null, null), 257, Blue, grokState.Stale);
-        Txt(g, grokState.Reading?.Balance ?? "Connecting to Grok…", 24, 307, 10, Muted);
-        Txt(g, "Codex + Grok", 18, 329, 9, Muted);
-        Txt(g, busy ? "Updating…" : "Updates every minute", 202, 329, 9, Muted);
+        float top = 48;
+        foreach (var provider in EnabledProviders)
+        {
+            var state = states[provider.Id];
+            Round(g, new(12, top + 2, 296, provider.CardHeight), 16, Color.FromArgb(224, 227, 233));
+            Round(g, new(12, top, 296, provider.CardHeight), 16, Card, Color.FromArgb(233, 235, 240));
+            Header(g, provider, state, top + 16, provider.Accent);
+            for (var i = 0; i < provider.QuotaLabels.Length; i++)
+                Row(g, state.Reading?.Quotas.ElementAtOrDefault(i) ?? new Quota(provider.QuotaLabels[i], null, null), top + 41 + i * 51, provider.Accent, state.Stale);
+            Txt(g, state.Reading?.Balance ?? $"Connecting to {provider.Name}…", 24, top + provider.CardHeight - 18, 10, Muted);
+            if (provider.HasFreeResets)
+            {
+                var resets = state.Reading?.FreeResets;
+                Round(g, new(205, top + provider.CardHeight - 22, 91, 17), 8, Color.FromArgb(235, 241, 250));
+                Txt(g, resets is { } count ? $"Free resets  {count}" : "Free resets  —", 214, top + provider.CardHeight - 19, 9,
+                    state.Stale ? Amber : resets > 0 ? provider.Accent : Muted, resets > 0);
+            }
+            top += provider.CardHeight + 8;
+        }
+        Txt(g, string.Join(" + ", EnabledProviders.Select(p => p.Name)), 18, CardsHeight - 13, 9, Muted);
+        Txt(g, busy ? "Updating…" : "Updates every minute", 202, CardsHeight - 13, 9, Muted);
     }
+    private static string BadgeLabel(string label) => label switch { "5 hours" => "5h", "Weekly" => "Wk", _ => label };
     private void PaintBadges(Graphics g)
     {
-        Badge(codexState, 0, Teal);
-        Badge(grokState, 100, Blue);
+        foreach (var (provider, index) in EnabledProviders.Select((p, i) => (p, i)))
+            Badge(provider, states[provider.Id], index * 100, provider.Accent);
 
         void Center(string text, float x, float y, float size, Color color, bool bold = false)
         {
@@ -428,7 +532,7 @@ internal sealed class Widget : Form
             var value = prefs.ShowUsed ? n : 100 - n;
             if (value > 0) g.DrawArc(pen, rect, -90, (float)(3.6 * value));
         }
-        void Badge(ProviderState state, float x, Color accent)
+        void Badge(ProviderDefinition provider, ProviderState state, float x, Color accent)
         {
             // Soft perimeter shadow and a pearl surface, kept inside the existing footprint.
             for (var i = 0; i < 3; i++)
@@ -443,26 +547,26 @@ internal sealed class Widget : Form
             var first = state.Reading?.Quotas.ElementAtOrDefault(0);
             var second = state.Reading?.Quotas.ElementAtOrDefault(1);
             Ring(first, x, 6, accent, state.Stale);
-            if (state.Name == "Codex") Ring(second, x, 10, Color.FromArgb(153, 170, 196), state.Stale);
-            DrawLogo(g, state.Name == "Codex" ? codexLogo : grokLogo, new RectangleF(x + 23, 19, 12, 12));
+            if (provider.QuotaLabels.Length > 1) Ring(second, x, 10, Color.FromArgb(153, 170, 196), state.Stale);
+            DrawLogo(g, logos[provider.Id], new RectangleF(x + 23, 19, 12, 12));
             Txt(g, state.Name, x + 39, 19, 10, Muted, true);
-            if (state.Name == "Codex")
+            if (provider.QuotaLabels.Length > 1)
             {
-                Center($"5h  {Percent(first)}", x, 35, 14, TextMain, true);
-                Center($"Wk  {Percent(second)}", x, 53, 11, Muted);
-                var free = state.Reading?.FreeResets;
+                Center($"{BadgeLabel(provider.QuotaLabels[0])}  {Percent(first)}", x, 35, 14, TextMain, true);
+                Center($"{BadgeLabel(provider.QuotaLabels[1])}  {Percent(second)}", x, 53, 11, Muted);
+                var free = provider.HasFreeResets ? state.Reading?.FreeResets : null;
                 Center(state.Stale ? "STALE" : free > 0 ? $"↻ {free} free" : prefs.ShowUsed ? "used" : "left", x, 70, 9, state.Stale ? Amber : Muted);
             }
             else
             {
                 Center(Percent(first), x, 34, 22, TextMain, true);
-                Center(state.Stale ? "STALE" : prefs.ShowUsed ? "week used" : "week left", x, 62, 10, state.Stale ? Amber : Muted);
+                Center(state.Stale ? "STALE" : $"{BadgeLabel(provider.QuotaLabels[0])} {(prefs.ShowUsed ? "used" : "left")}", x, 62, 10, state.Stale ? Amber : Muted);
             }
         }
     }
-    private void Header(Graphics g, ProviderState state, float y, Color accent)
+    private void Header(Graphics g, ProviderDefinition provider, ProviderState state, float y, Color accent)
     {
-        DrawLogo(g, state.Name == "Codex" ? codexLogo : grokLogo, new RectangleF(24, y - 3, 17, 17));
+        DrawLogo(g, logos[provider.Id], new RectangleF(24, y - 3, 17, 17));
         Txt(g, state.Name, 48, y - 3, 14, TextMain, true);
         var age = state.Reading is { } r ? DateTimeOffset.Now - r.Fetched : (TimeSpan?)null;
         var status = state.Stale ? "Stale · hover for details" : age == null ? busy ? "Connecting" : "Unavailable" : "Live";
@@ -520,18 +624,28 @@ internal sealed class Widget : Form
         if (prefs.Compact)
         {
             Cursor = Cursors.SizeAll;
-            var compactTip = Details(x < 100 ? codexState : grokState) + "\n\nDrag to move · double-click for cards · right-click for layout/settings";
+            var compactTip = Details(states[EnabledProviders[Math.Clamp((int)(x / 100), 0, EnabledProviders.Length - 1)].Id]) + "\n\nDrag to move · double-click for cards · right-click for layout/settings";
             if (compactTip != tipText) { tips.SetToolTip(this, compactTip); tipText = compactTip; }
             return;
         }
         var h = y < 44 ? x >= 282 ? 2 : x >= 248 ? 1 : x >= 215 ? 0 : -1 : -1;
         if (hover != h) { hover = h; Cursor = h >= 0 ? Cursors.Hand : Cursors.Default; Invalidate(); }
-        var text = h switch { 0 => "Refresh now", 1 => "Hide to tray — click the tray icon to restore", 2 => "Settings and Exit", _ => y < 44 ? "Drag to move · right-click for settings" : Details(y < 212 ? codexState : grokState) };
+        var text = h switch { 0 => "Refresh now", 1 => "Hide to tray — click the tray icon to restore", 2 => "Settings and Exit", _ => y < 44 ? "Drag to move · right-click for settings" : CardDetails(y) };
         if (text != tipText) { tips.SetToolTip(this, text); tipText = text; }
+    }
+    private string CardDetails(float y)
+    {
+        float top = 48;
+        foreach (var provider in EnabledProviders)
+        {
+            if (y >= top && y < top + provider.CardHeight) return Details(states[provider.Id]);
+            top += provider.CardHeight + 8;
+        }
+        return "Right-click → Subscriptions to choose what to display";
     }
     private string Details(ProviderState state)
     {
-        var lines = new List<string> { state.Name + (state.Name == "Codex" ? " · live Codex account limits" : " · Grok CLI billing") };
+        var lines = new List<string> { state.Name + " · " + providers.Single(p => p.Name == state.Name).Description };
         if (state.Error != null) lines.Add(state.Error);
         if (state.Reading is { } r)
         {
@@ -543,7 +657,7 @@ internal sealed class Widget : Form
                 if (q.Note != null) lines.Add(q.Note);
             }
             lines.Add(r.Balance);
-            if (state.Name == "Codex") lines.Add(r.FreeResets is { } count ? $"Free resets available: {count}" : "Free reset availability: unavailable");
+            if (providers.Single(p => p.Name == state.Name).HasFreeResets) lines.Add(r.FreeResets is { } count ? $"Free resets available: {count}" : "Free reset availability: unavailable");
         }
         return string.Join("\n", lines);
     }
@@ -574,7 +688,7 @@ internal sealed class Widget : Form
     private void Quit() { closing = true; SavePosition(); timer.Stop(); stop.Cancel(); tray.Visible = false; Close(); }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { stop.Cancel(); timer.Dispose(); tray.Dispose(); menu.Dispose(); tips.Dispose(); grok.Dispose(); stop.Dispose(); Icon?.Dispose(); codexLogo.Dispose(); grokLogo.Dispose(); }
+        if (disposing) { stop.Cancel(); timer.Dispose(); tray.Dispose(); menu.Dispose(); tips.Dispose(); grok.Dispose(); stop.Dispose(); Icon?.Dispose(); foreach (var logo in logos.Values) logo.Dispose(); }
         base.Dispose(disposing);
     }
 }
