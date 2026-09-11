@@ -20,12 +20,22 @@ Current version: **1.4.0**. See [CHANGELOG.md](CHANGELOG.md) for release history
 
 - Windows 10 or Windows 11.
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build. The default build requires the .NET 10 Windows Desktop Runtime to run.
-- Codex installed and signed in with a ChatGPT account that exposes account rate limits.
-- Grok CLI / Build signed in using OAuth (`grok login`) for Grok usage.
+- For Codex monitoring: Codex installed and signed in with a ChatGPT account that exposes account rate limits.
+- For Grok monitoring: Grok CLI / Build signed in using OAuth (`grok login`).
+
+Only the login for each selected provider is required. You do not need both subscriptions.
 
 Choose **Subscriptions** in the widget or tray menu to toggle providers. Both start enabled for compatibility, and at least one stays selected. Your selection is remembered and both layouts resize automatically. Disabled providers stop refreshing and disappear from tooltips, tray summaries, usage links, and health snapshots.
 
-Each provider refreshes independently. A missing login for one provider does not prevent the other from updating.
+Each selected provider refreshes independently. A missing login for one provider does not prevent the other from updating. Selecting a provider enables monitoring; it does not purchase a subscription or sign you in.
+
+## Choose your subscriptions
+
+After launching, right-click the widget or its tray icon and open **Subscriptions**. Leave **Codex** selected for Codex-only monitoring, **Grok** for Grok-only monitoring, or select both. Cards stack only the selected providers; compact mode shows one badge per selected provider. At least one provider must stay selected.
+
+Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Provider and percentage selections persist across restarts.
+
+Currently supported: Codex and Grok. Claude is planned for a future integration and is not available in the menu.
 
 ## Build and install
 
