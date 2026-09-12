@@ -19,3 +19,11 @@ cards-after-switch.png
 .env
 .env.*
 work/
+
+# Cross-platform builds and synthetic render checks
+dist/
+*-cards-left.png
+*-cards-used.png
+*-badge-left.png
+*-badge-used.png
+startup-error.txt

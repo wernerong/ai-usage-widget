@@ -8,7 +8,7 @@ if (!(Test-Path -LiteralPath (Join-Path $taskPayloadDir 'AIUsageWidget.exe'))) {
 $taskRunning = Get-Process AIUsageWidget -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $taskExecutable }
 if ($taskRunning) { throw 'Exit AI Usage Widget from its tray menu before reinstalling.' }
 New-Item -ItemType Directory -Path $taskInstallDir -Force | Out-Null
-Get-ChildItem -LiteralPath $taskPayloadDir -File | Copy-Item -Destination $taskInstallDir -Force
+Get-ChildItem -LiteralPath $taskPayloadDir | Copy-Item -Destination $taskInstallDir -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination $taskInstallDir -Force
 $taskShell = New-Object -ComObject WScript.Shell
 $taskShortcut = $taskShell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'AI Usage Widget.lnk'))

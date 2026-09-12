@@ -1,13 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>AIUsageWidget</AssemblyName>
-    <Version>1.4.0</Version>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Version>1.5.0</Version>
+    <UseAppHost>true</UseAppHost>
+    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
-  <ItemGroup><EmbeddedResource Include="Assets/*.png" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <AvaloniaResource Include="Assets/*.png" />
+    <InternalsVisibleTo Include="UsageWidget.UiChecks" />
+  </ItemGroup>
 </Project>

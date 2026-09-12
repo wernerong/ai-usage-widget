@@ -52,16 +52,31 @@ internal static class CodexProvider
 {
     public static string FindBinary()
     {
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        var explicitBinary = Environment.GetEnvironmentVariable("AI_USAGE_WIDGET_CODEX_PATH");
+        if (!string.IsNullOrWhiteSpace(explicitBinary))
         {
-            var path = Path.Combine(dir.Trim('"'), "codex.exe");
+            if (File.Exists(explicitBinary)) return explicitBinary;
+            throw new InvalidOperationException("The configured Codex executable does not exist.");
+        }
+        var name = OperatingSystem.IsWindows() ? "codex.exe" : "codex";
+        var directories = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator).Where(d => !string.IsNullOrWhiteSpace(d));
+        if (OperatingSystem.IsMacOS()) directories = directories.Concat(new[] {
+            "/opt/homebrew/bin", "/usr/local/bin", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin"),
+            "/Applications/Codex.app/Contents/Resources",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Applications", "Codex.app", "Contents", "Resources") });
+        foreach (var dir in directories)
+        {
+            var path = Path.Combine(dir.Trim('"'), name);
             if (File.Exists(path)) return path;
         }
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
-        if (Directory.Exists(root))
+        if (OperatingSystem.IsWindows())
         {
-            var found = Directory.EnumerateFiles(root, "codex.exe", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-            if (found != null) return found;
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
+            if (Directory.Exists(root))
+            {
+                var found = Directory.EnumerateFiles(root, "codex.exe", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+                if (found != null) return found;
+            }
         }
         throw new InvalidOperationException("Codex CLI not found. Install or update Codex.");
     }
@@ -77,6 +92,8 @@ internal static class CodexProvider
             RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
             WorkingDirectory = AppContext.BaseDirectory
         }};
+        if (OperatingSystem.IsMacOS())
+            process.StartInfo.Environment["PATH"] = string.Join(Path.PathSeparator, new[] { Path.GetDirectoryName(process.StartInfo.FileName), "/opt/homebrew/bin", "/usr/local/bin", Environment.GetEnvironmentVariable("PATH") ?? "/usr/bin:/bin" });
         process.StartInfo.ArgumentList.Add("app-server");
         process.StartInfo.ArgumentList.Add("--stdio");
         process.Start();

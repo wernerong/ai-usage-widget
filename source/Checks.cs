@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia.Media;
 
 namespace UsageWidget;
 
@@ -34,7 +35,7 @@ internal static class Checks
         Check(CodexProvider.Clamp(101) == 100 && CodexProvider.Clamp(-1) == 0 && CodexProvider.Clamp(null) == null, "Clamp valid values only");
         var state = new ProviderState("Test") { Reading = g, Error = "Network" };
         Check(state.Stale && state.Reading == g, "Failure preserves last result and marks stale");
-        var definition = new ProviderDefinition("codex", "Codex", "", "", Color.Black, ["5 hours", "Weekly"], true, true,
+        var definition = new ProviderDefinition("codex", "Codex", "", "", Colors.Black, ["5 hours", "Weekly"], true, true,
             _ => Task.FromResult(codex));
         var preferences = JsonSerializer.Deserialize<Preferences>("{\"Compact\":true}")!;
         Check(preferences.IsEnabled(definition), "Legacy preferences retain enabled subscriptions");

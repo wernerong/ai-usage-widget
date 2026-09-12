@@ -4,6 +4,19 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+### 1.5.0 — Windows and macOS migration
+
+- Replace Windows Forms and Win32/GDI badge rendering with a shared Avalonia/Skia interface.
+- Retain provider selection, adaptive layouts, percentage display, saved position, opacity, always-on-top, and usage tooltips.
+- Add macOS menu bar controls, Application Support preferences, and CLI discovery. Both installers enable launch at login, with a menu option to disable it.
+- Replace Windows-only instance activation with per-user ownership and named-pipe restoration.
+- Add self-contained macOS app bundle packaging for Apple Silicon and Intel, install/uninstall scripts, and Windows/macOS CI packaging.
+- Preserve existing Windows preferences and startup behavior; copy nested runtime dependencies during installation.
+- Add deterministic refresh and rendered UI checks for cancellation, late responses, selection, sizing, transparency, and stale readings.
+- Make tray summaries follow the selected used/remaining display mode.
+
+macOS native smoke testing and Developer ID signing/notarization remain release prerequisites. No v1.5.0 release tag has been created.
+
 ## [1.4.0] - 2026-09-11
 
 ### Added

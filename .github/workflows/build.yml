@@ -1,20 +1,50 @@
-name: Windows build
+name: Desktop builds
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-15
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Restore pinned dependencies
+        run: dotnet restore tests/UsageWidget.UiChecks.csproj --locked-mode
       - name: Build
-        run: dotnet build source/UsageWidget.csproj -c Release
-      - name: Check usage mapping
+        run: dotnet build source/UsageWidget.csproj -c Release --no-restore
+      - name: Check provider parsing and refresh behavior
         shell: pwsh
         run: |
-          dotnet source/bin/Release/net10.0-windows/AIUsageWidget.dll --self-test
+          dotnet source/bin/Release/net10.0/AIUsageWidget.dll --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-Content source/bin/Release/net10.0-windows/checks.txt
+          Get-Content source/bin/Release/net10.0/checks.txt
+      - name: Check UI interactions and rendering
+        run: dotnet run --project tests/UsageWidget.UiChecks.csproj -c Release --no-restore
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet publish source/UsageWidget.csproj -c Release -r win-x64 --self-contained true -o app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = ([xml](Get-Content source/UsageWidget.csproj)).Project.PropertyGroup.Version
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Compress-Archive -Path app,Install.ps1,Uninstall.ps1,README.md,CHANGELOG.md -DestinationPath "dist/AIUsageWidget-$version-win-x64.zip"
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos.sh ${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIUsageWidget-${{ matrix.rid }}
+          path: dist/*.zip
