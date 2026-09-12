@@ -14,6 +14,15 @@ app="$stage/AI Usage Widget.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 dotnet publish "$repo_dir/source/UsageWidget.csproj" -c Release -r "$rid" --self-contained true -o "$app/Contents/MacOS"
 chmod +x "$app/Contents/MacOS/AIUsageWidget"
+iconset="$stage_root/widget.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$repo_dir/source/Assets/widget.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    double_size=$((size * 2))
+    sips -z "$double_size" "$double_size" "$repo_dir/source/Assets/widget.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil --convert icns "$iconset" --output "$app/Contents/Resources/widget.icns"
+test -s "$app/Contents/Resources/widget.icns"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -22,10 +31,11 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>AI Usage Widget</string>
 <key>CFBundleDisplayName</key><string>AI Usage Widget</string>
 <key>CFBundleExecutable</key><string>AIUsageWidget</string>
+<key>CFBundleIconFile</key><string>widget.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>$version</string>
 <key>CFBundleShortVersionString</key><string>$version</string>
-<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

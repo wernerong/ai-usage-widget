@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking Codex and Grok usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current development version: **1.5.0**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.5.1](https://github.com/wernerong/ai-usage-widget/tree/v1.5.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Features
 
@@ -13,20 +13,21 @@ Current development version: **1.5.0**. See [CHANGELOG.md](CHANGELOG.md) for his
 - Percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
 - Independent provider refreshes every minute; stale readings remain visible when requests fail.
 - Drag to move, remembered position, always on top, and adjustable opacity.
-- Windows tray and macOS menu bar controls, with optional launch at login.
+- Windows tray and macOS menu bar controls; both installers enable launch at login, with an option to disable it.
+- Application icons embedded in the Windows executable and macOS app bundle.
 
 Claude is not yet supported. The provider registry allows future integrations without duplicating the application UI.
 
 ## Requirements
 
-- Windows 10/11 (x64), or macOS 14 or later (Apple Silicon or Intel).
+- Windows 10/11 (x64), or macOS 13 or later (Apple Silicon or Intel).
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build. Self-contained packages include the runtime.
 - For Codex: Codex CLI installed and signed in with a ChatGPT account exposing account rate limits.
 - For Grok: Grok CLI / Build signed in with OAuth (`grok login`).
 
 Only selected providers need logins. A missing login for one provider does not prevent another from updating. Selecting a provider enables monitoring; it does not purchase a subscription or sign you in.
 
-The .NET operating-system support policy is documented [here](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md).
+The bundle permits macOS 13, with startup reported working on 13.5. This compatibility setting does not extend Microsoft's official .NET 10 operating-system support policy, documented [here](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md).
 
 ## Choose your subscriptions
 
@@ -65,7 +66,7 @@ Extract the ZIP and run `Install.command`. This installs to `~/Applications/AI U
 
 To upgrade, exit the widget, move the previous `.app` to Trash, and install at the same path. Preferences persist. To uninstall, exit and run `Uninstall.command`; it removes the login agent and moves the app to Trash.
 
-Mac packages use an ad-hoc signature for local testing. They are not Developer ID-signed or notarized. Public distribution requires signing and notarization on a Mac; this repository does not include signing credentials. Native macOS menu bar behavior, login startup, and live authentication still require a Mac smoke test before a production release.
+Mac packages use an ad-hoc signature for local testing. They are not Developer ID-signed or notarized. Public distribution requires signing and notarization on a Mac; this repository does not include signing credentials. The latest menu fix still needs native Mac verification; Windows and automated menu checks pass.
 
 ## Codex discovery on macOS
 

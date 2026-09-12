@@ -13,6 +13,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination $t
 $taskShell = New-Object -ComObject WScript.Shell
 $taskShortcut = $taskShell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'AI Usage Widget.lnk'))
 $taskShortcut.TargetPath = $taskExecutable
+$taskShortcut.IconLocation = "$taskExecutable,0"
 $taskShortcut.WorkingDirectory = $taskInstallDir
 $taskShortcut.Description = 'Floating Codex and Grok usage monitor'
 $taskShortcut.Save()

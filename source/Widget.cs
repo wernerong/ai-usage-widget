@@ -24,6 +24,10 @@ internal sealed class Widget : Window
     private readonly PixelPoint? initialPosition;
     private DateTimeOffset nextRefresh = DateTimeOffset.MinValue;
     private string lastTip = "";
+    private readonly ContextMenu contextMenu = new();
+    internal readonly NativeMenu NativeMenu = new();
+    private bool menusInitialized;
+    private bool contextMenuDirty = true, nativeMenuDirty = true;
     internal static ProviderDefinition[] CreateProviders(GrokProvider grok) => [
         new("codex", "Codex", "https://chatgpt.com/codex/settings/usage", "live Codex account limits", Color.Parse("#3675C4"), ["5 hours", "Weekly"], true, true, CodexProvider.Read),
         new("grok", "Grok", "https://grok.com?_s=usage", "Grok CLI billing", Color.Parse("#8074AA"), ["Weekly"], false, true, grok.Read)
@@ -54,7 +58,8 @@ internal sealed class Widget : Window
         if (createTray)
         {
             tray = new TrayIcon { Icon = Icon, ToolTipText = "AI Usage Widget", IsVisible = true };
-            tray.Clicked += (_, _) => ToggleVisible();
+            // On macOS the status item opens its native menu. A click must not also hide the widget.
+            if (!OperatingSystem.IsMacOS()) tray.Clicked += (_, _) => ToggleVisible();
             TrayIcon.SetIcons(Application.Current!, new TrayIcons { tray });
         }
         Monitor.Changed += UpdateDisplay;
@@ -70,6 +75,8 @@ internal sealed class Widget : Window
             if (initialPosition is { } savedPosition) Position = savedPosition; else ResetPosition();
             ClampPosition();
             SavePosition();
+            // Injected monitors are driven by the caller (including UI regression tests).
+            if (monitor != null) return;
             if (args.Contains("--render-check")) { await RenderChecks(); return; }
             timer.Start();
             await RefreshUsage();
@@ -115,34 +122,63 @@ internal sealed class Widget : Window
     }
     internal void BuildMenus()
     {
-        var choices = Choices();
-        var context = new ContextMenu();
-        foreach (var choice in choices) context.Items.Add(ContextItem(choice));
-        Surface.ContextMenu = context;
-        if (tray != null)
+        // Keep menu objects alive for the entire window lifetime. Cocoa may still be
+        // tracking a clicked item until its native callback has returned.
+        contextMenuDirty = nativeMenuDirty = true;
+        if (menusInitialized) return;
+        menusInitialized = true;
+        contextMenu.Opening += (_, _) => RefreshContextMenu();
+        NativeMenu.NeedsUpdate += (_, _) => RefreshNativeMenu();
+        RefreshContextMenu();
+        RefreshNativeMenu();
+        Surface.ContextMenu = contextMenu;
+        if (tray != null) tray.Menu = NativeMenu;
+    }
+    internal void RefreshContextMenu()
+    {
+        if (!contextMenuDirty || contextMenu.IsOpen) return;
+        contextMenu.Items.Clear();
+        foreach (var choice in Choices()) contextMenu.Items.Add(ContextItem(choice));
+        contextMenuDirty = false;
+    }
+    internal void RefreshNativeMenu()
+    {
+        // Called by NeedsUpdate, the supported native-menu mutation point.
+        if (!nativeMenuDirty) return;
+        NativeMenu.Items.Clear();
+        foreach (var choice in Choices()) NativeMenu.Items.Add(NativeItem(choice));
+        nativeMenuDirty = false;
+    }
+    private void QueueMenuAction(Action action)
+    {
+        Dispatcher.UIThread.Post(() =>
         {
-            var native = new NativeMenu();
-            foreach (var choice in choices) native.Items.Add(NativeItem(choice));
-            tray.Menu = native;
-        }
-        static Control ContextItem(MenuChoice choice)
+            if (!closing) action();
+        }, DispatcherPriority.Background);
+    }
+    private Control ContextItem(MenuChoice choice)
+    {
+        if (choice.Label == "-") return new Separator();
+        var item = new MenuItem { Header = choice.Label, IsEnabled = choice.Enabled, IsChecked = choice.Checked ?? false,
+            ToggleType = choice.Checked == null ? MenuItemToggleType.None : choice.Radio ? MenuItemToggleType.Radio : MenuItemToggleType.CheckBox };
+        if (choice.Children != null) foreach (var child in choice.Children) item.Items.Add(ContextItem(child));
+        // Dismiss only the popup, then run the action outside its routed/native callback.
+        if (choice.Action != null) item.Click += (_, e) =>
         {
-            if (choice.Label == "-") return new Separator();
-            var item = new MenuItem { Header = choice.Label, IsEnabled = choice.Enabled, IsChecked = choice.Checked ?? false,
-                ToggleType = choice.Checked == null ? MenuItemToggleType.None : choice.Radio ? MenuItemToggleType.Radio : MenuItemToggleType.CheckBox };
-            if (choice.Children != null) foreach (var child in choice.Children) item.Items.Add(ContextItem(child));
-            if (choice.Action != null) item.Click += (_, e) => { e.Handled = true; choice.Action(); };
-            return item;
-        }
-        static NativeMenuItemBase NativeItem(MenuChoice choice)
-        {
-            if (choice.Label == "-") return new NativeMenuItemSeparator();
-            var item = new NativeMenuItem(choice.Label) { IsEnabled = choice.Enabled, IsChecked = choice.Checked ?? false,
-                ToggleType = choice.Checked == null ? NativeMenuItemToggleType.None : choice.Radio ? NativeMenuItemToggleType.Radio : NativeMenuItemToggleType.CheckBox };
-            if (choice.Children != null) { item.Menu = new(); foreach (var child in choice.Children) item.Menu.Items.Add(NativeItem(child)); }
-            if (choice.Action != null) item.Click += (_, _) => choice.Action();
-            return item;
-        }
+            e.Handled = true;
+            contextMenu.Close();
+            QueueMenuAction(choice.Action);
+        };
+        return item;
+    }
+    private NativeMenuItemBase NativeItem(MenuChoice choice)
+    {
+        if (choice.Label == "-") return new NativeMenuItemSeparator();
+        var item = new NativeMenuItem(choice.Label) { IsEnabled = choice.Enabled, IsChecked = choice.Checked ?? false,
+            ToggleType = choice.Checked == null ? NativeMenuItemToggleType.None : choice.Radio ? NativeMenuItemToggleType.Radio : NativeMenuItemToggleType.CheckBox };
+        if (choice.Children != null) { item.Menu = new(); foreach (var child in choice.Children) item.Menu.Items.Add(NativeItem(child)); }
+        if (choice.Action != null) item.Click += (_, _) => QueueMenuAction(choice.Action);
+        return item;
     }
     private async Task ShowError(string message)
     {

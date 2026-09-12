@@ -4,7 +4,18 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
-### 1.5.0 — Windows and macOS migration
+## [1.5.1] - 2026-09-12
+
+### Fixed
+
+- Lower the Mac bundle minimum to macOS 13.0 following a successful user test on 13.5.
+- Keep context and native menu objects alive, defer actions until callbacks return, and refresh menu items before opening rather than during selection.
+- Use the explicit Show / hide command on macOS instead of also toggling visibility when the menu bar icon is clicked.
+- Generate and register a multi-resolution `.icns` application icon in the Mac bundle before signing.
+- Embed the application icon in the Windows executable and explicitly select it for the Start menu shortcut.
+- Add UI regression checks that settings selections keep the widget visible and preserve native menu objects.
+
+### Included since v1.4.0
 
 - Replace Windows Forms and Win32/GDI badge rendering with a shared Avalonia/Skia interface.
 - Retain provider selection, adaptive layouts, percentage display, saved position, opacity, always-on-top, and usage tooltips.
@@ -15,7 +26,9 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 - Add deterministic refresh and rendered UI checks for cancellation, late responses, selection, sizing, transparency, and stale readings.
 - Make tray summaries follow the selected used/remaining display mode.
 
-macOS native smoke testing and Developer ID signing/notarization remain release prerequisites. No v1.5.0 release tag has been created.
+### Known limitations
+
+Mac packages are ad-hoc signed, not Developer ID-signed or notarized. The latest menu fix still needs native Mac verification. macOS 13.5 startup was reported working by the user; macOS 13 remains outside Microsoft's official .NET 10 OS support policy.
 
 ## [1.4.0] - 2026-09-11
 
@@ -42,5 +55,6 @@ The initial repository commit (`3e6fefa`) declares version 1.3.1. Earlier releas
 - Automatic refresh, reset countdowns, balances, and Codex free-reset counts.
 - Tray controls, saved preferences, and optional Windows startup.
 
-[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/wernerong/ai-usage-widget/tree/v1.5.1
 [1.4.0]: https://github.com/wernerong/ai-usage-widget/tree/v1.4.0

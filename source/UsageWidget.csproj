@@ -5,8 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>AIUsageWidget</AssemblyName>
-    <Version>1.5.0</Version>
+    <Version>1.5.1</Version>
     <UseAppHost>true</UseAppHost>
+    <ApplicationIcon>Assets/widget.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
