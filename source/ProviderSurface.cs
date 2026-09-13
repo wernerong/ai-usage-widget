@@ -16,8 +16,10 @@ internal sealed class ProviderSurface : Control, IDisposable
     private static readonly Typeface Regular = new("Inter"), Bold = new("Inter", FontStyle.Normal, FontWeight.Bold);
     public bool Updating { get; set; }
     public string? Notice { get; set; }
+    internal double IslandHeight { get; set; } = 40;
     public double CardsHeight => 63 + monitor.Enabled.Sum(p => p.CardHeight + 8);
-    public Size DesiredWidgetSize => monitor.Preferences.Compact ? new(monitor.Enabled.Length * 100 - 4, 96) : new(320, CardsHeight);
+    internal static double IslandProviderWidth(ProviderDefinition p) => 60 + 64 * p.QuotaLabels.Length;
+    public Size DesiredWidgetSize => monitor.Preferences.Island ? new(24 + monitor.Enabled.Sum(IslandProviderWidth), IslandHeight) : monitor.Preferences.Compact ? new(monitor.Enabled.Length * 100 - 4, 96) : new(320, CardsHeight);
     public ProviderSurface(UsageMonitor monitor)
     {
         this.monitor = monitor;
@@ -51,6 +53,7 @@ internal sealed class ProviderSurface : Control, IDisposable
     public override void Render(DrawingContext g)
     {
         base.Render(g);
+        if (monitor.Preferences.Island) { Island(g); return; }
         if (monitor.Preferences.Compact)
         {
             foreach (var (provider, index) in monitor.Enabled.Select((p, i) => (p, i))) Badge(g, provider, index * 100);
@@ -87,6 +90,33 @@ internal sealed class ProviderSurface : Control, IDisposable
         }
         Txt(g, string.Join(" + ", monitor.Enabled.Select(p => p.Name)), 18, CardsHeight - 17, 10, Muted);
         Txt(g, Notice != null ? "Settings error · hover" : Updating ? "Updating…" : "Updates every minute", 198, CardsHeight - 17, 10, Notice != null ? Amber : Muted);
+    }
+    private void Island(DrawingContext g)
+    {
+        var center = IslandHeight / 2;
+        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Color.Parse("#CCD2DD"));
+        double x = 12;
+        foreach (var p in monitor.Enabled)
+        {
+            var state = monitor.States[p.Id];
+            if (x > 12) g.DrawLine(new Pen(Brush(Color.Parse("#E1E4EB"))), new(x - 6, center - 11), new(x - 6, center + 11));
+            Logo(g, p, new(x + 2, center - 12, 12, 12));
+            Txt(g, p.Name, x + 19, center - 13, 10, Main, true);
+            var status = state.Stale ? "STALE" : state.Reading == null ? Updating ? "Loading" : "No data" : monitor.Preferences.ShowUsed ? "% used" : "% left";
+            Txt(g, status, x + 2, center + 3, 9, state.Stale || Notice != null ? Amber : Muted);
+            for (var i = 0; i < p.QuotaLabels.Length; i++)
+            {
+                var q = state.Reading?.Quotas.ElementAtOrDefault(i);
+                var value = q?.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
+                var color = state.Stale ? Amber : q?.Used >= 90 ? Color.Parse("#C14E4E") : q?.Used >= 75 ? Amber : p.Accent;
+                var left = x + 60 + i * 64;
+                Txt(g, Label(p.QuotaLabels[i]), left, center - 15, 9, Muted);
+                Txt(g, value is { } v ? $"{v:0.#}%" : "—", left, center - 4, 14, state.Stale ? Amber : Main, true);
+                Round(g, new(left, center + 14, 48, 2), 1, Color.Parse("#E9EBF0"));
+                if (value is > 0) Round(g, new(left, center + 14, 48 * Math.Clamp(value.Value, 0, 100) / 100, 2), 1, color);
+            }
+            x += IslandProviderWidth(p);
+        }
     }
     private void Logo(DrawingContext g, ProviderDefinition provider, Rect target) => g.DrawImage(logos[provider.Id], target);
     private void Row(DrawingContext g, Quota quota, double y, Color accent, bool stale)
@@ -149,6 +179,17 @@ internal sealed class ProviderSurface : Control, IDisposable
     }
     internal ProviderDefinition? ProviderAt(Point point)
     {
+        if (monitor.Preferences.Island)
+        {
+            if (point.Y < 3 || point.Y > IslandHeight - 3) return null;
+            double left = 12;
+            foreach (var p in monitor.Enabled)
+            {
+                if (point.X >= left && point.X < left + IslandProviderWidth(p)) return p;
+                left += IslandProviderWidth(p);
+            }
+            return null;
+        }
         if (monitor.Preferences.Compact)
         {
             var index = (int)(point.X / 100);

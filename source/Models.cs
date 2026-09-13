@@ -18,6 +18,7 @@ internal sealed class Preferences
     public bool Pinned { get; set; } = true;
     public bool ShowUsed { get; set; }
     public bool Compact { get; set; }
+    public bool Island { get; set; }
     public double Opacity { get; set; } = 0.97;
     public static string Folder => PlatformServices.SettingsFolder;
     public static string FilePath => Path.Combine(Folder, "settings.json");

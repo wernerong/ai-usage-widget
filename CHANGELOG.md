@@ -4,6 +4,24 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-13
+
+### Fixed
+
+- Constrain dragging to connected displays on Windows and macOS, permit transfers between monitors, account for display scaling and gaps, and recover the widget when a display is disconnected.
+- Keep pinned Windows islands above overlapping taskbars when switching apps or when Explorer changes window order, without taking keyboard focus. Stop enforcing this when hidden or Always on top is disabled.
+
+### Added
+
+- Fit the island to the current Windows taskbar height and display scaling, center it vertically with equal margins, and refine text spacing and corner rounding; allow saved positions over the Windows taskbar, and preserve macOS menu bar and Dock boundaries.
+- Add a compact island bar layout with provider labels, quota percentages, progress bars, and stale or unavailable status.
+- Place the island at the top center of the current screen on selection or position reset, preserve dragged positions, and resize around its center when subscriptions change.
+- Retain reset times and credits in provider tooltips and support existing percentage, opacity, and always-on-top settings.
+
+### Validation
+
+- Pass 101 automated UI checks and verify Windows taskbar alignment and stacking without changing keyboard focus. Native Mac testing of the new island and dragging behavior remains pending.
+
 ## [1.5.1] - 2026-09-12
 
 ### Fixed
@@ -55,6 +73,7 @@ The initial repository commit (`3e6fefa`) declares version 1.3.1. Earlier releas
 - Automatic refresh, reset countdowns, balances, and Codex free-reset counts.
 - Tray controls, saved preferences, and optional Windows startup.
 
-[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/wernerong/ai-usage-widget/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/wernerong/ai-usage-widget/tree/v1.5.1
 [1.4.0]: https://github.com/wernerong/ai-usage-widget/tree/v1.4.0

@@ -2,12 +2,12 @@
 
 A floating desktop widget for checking Codex and Grok usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.5.1](https://github.com/wernerong/ai-usage-widget/tree/v1.5.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.6.0](https://github.com/wernerong/ai-usage-widget/tree/v1.6.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Features
 
 - Select Codex, Grok, or both; choices persist across restarts.
-- Compact round badges or detailed cards, sized to the selected providers.
+- Compact round badges, detailed cards, or a slim island bar, sized to the selected providers.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
 - Percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
@@ -34,6 +34,12 @@ The bundle permits macOS 13, with startup reported working on 13.5. This compati
 Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select **Codex**, **Grok**, or both. Both start enabled for compatibility, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
 
 Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Preferences are preserved across restarts and Windows upgrades from v1.4.0.
+
+## Island bar
+
+Choose **Layout → Island bar** for a rounded, 40-pixel-high strip near the top center of the current screen's usable area, below the macOS menu bar. It shows each selected provider and its quota percentages with small progress bars; hover a provider for reset times, credits, and full status.
+
+Drag anywhere on the bar to move it. Its position and layout persist across restarts. Dragging keeps the whole widget on a connected screen and can cross to another monitor, including monitors with different scaling or placed to the left or above. It snaps across shared edges rather than leaving part of the widget offscreen; unplugging a monitor brings it back onto an available screen. **Reset position** returns it to the top center. With both providers it is 336 pixels wide; selecting only Codex or Grok makes it narrower. Dimensions use logical pixels and follow display scaling. On Windows, its height adapts to the current monitor’s horizontal taskbar with even margins (40 logical pixels for a standard 48-pixel taskbar). Drag it into an unused part of the taskbar to center it vertically; the saved position can include the taskbar area. It is a floating overlay and does not reserve taskbar space or avoid taskbar buttons automatically. On macOS, movement stays within the usable desktop below the menu bar and outside the Dock. With **Always on top** enabled, the Windows island restores its position above an overlapping taskbar when switching apps, without taking keyboard focus. Auto-hidden taskbars do not hide the widget. Percentage display, opacity, always-on-top, and right-click settings work in this layout too.
 
 ## Windows build and install
 
@@ -66,7 +72,7 @@ Extract the ZIP and run `Install.command`. This installs to `~/Applications/AI U
 
 To upgrade, exit the widget, move the previous `.app` to Trash, and install at the same path. Preferences persist. To uninstall, exit and run `Uninstall.command`; it removes the login agent and moves the app to Trash.
 
-Mac packages use an ad-hoc signature for local testing. They are not Developer ID-signed or notarized. Public distribution requires signing and notarization on a Mac; this repository does not include signing credentials. The latest menu fix still needs native Mac verification; Windows and automated menu checks pass.
+Mac packages use an ad-hoc signature for local testing. They are not Developer ID-signed or notarized. Public distribution requires signing and notarization on a Mac; this repository does not include signing credentials. The menu and dragging changes still need native Mac verification; Windows and automated UI checks pass.
 
 ## Codex discovery on macOS
 
@@ -84,7 +90,7 @@ A terminal-only environment variable does not persist into Finder or login launc
 
 | Action | Control |
 | --- | --- |
-| Move | Drag a badge or detailed header |
+| Move | Drag a badge, island bar, or detailed header |
 | Select providers | Menu → Subscriptions |
 | Choose used or remaining | Menu → Percentage display |
 | Switch layout | Menu → Layout |

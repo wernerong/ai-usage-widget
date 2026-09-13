@@ -20,7 +20,9 @@ internal sealed class Widget : Window
     private readonly TrayIcon? tray;
     private readonly bool persist;
     private readonly string[] args;
-    private bool closing, initialized;
+    private bool closing, initialized, clamping;
+    private PixelPoint? dragOffset;
+    private WindowsTaskbarOverlay? taskbarOverlay;
     private readonly PixelPoint? initialPosition;
     private DateTimeOffset nextRefresh = DateTimeOffset.MinValue;
     private string lastTip = "";
@@ -38,11 +40,12 @@ internal sealed class Widget : Window
         this.persist = persist && !args.Contains("--render") && !args.Contains("--render-check");
         var preferences = args.Contains("--render-check") ? new Preferences() : Preferences.Load();
         Monitor = monitor ?? new UsageMonitor(preferences, CreateProviders(grok));
-        if (args.Contains("--compact")) Monitor.Preferences.Compact = true;
-        if (args.Contains("--cards")) Monitor.Preferences.Compact = false;
+        if (args.Contains("--compact")) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = true; }
+        if (args.Contains("--cards")) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = false; }
+        if (args.Contains("--island")) Monitor.Preferences.Island = true;
         if (args.Contains("--render-check"))
             foreach (var p in Monitor.Providers) Monitor.States[p.Id].Reading = Fixture(p);
-        initialPosition = Monitor.Preferences.X is { } savedX && Monitor.Preferences.Y is { } savedY ? new PixelPoint(savedX, savedY) : null;
+        initialPosition = !args.Contains("--island") && Monitor.Preferences.X is { } savedX && Monitor.Preferences.Y is { } savedY ? new PixelPoint(savedX, savedY) : null;
         Title = "AI Usage Widget";
         SystemDecorations = SystemDecorations.None;
         CanResize = false;
@@ -65,9 +68,11 @@ internal sealed class Widget : Window
         Monitor.Changed += UpdateDisplay;
         ApplyLayout(false);
         BuildMenus();
-        PositionChanged += (_, _) => SavePosition();
+        PositionChanged += (_, _) => { if (initialized) ClampPosition(); SavePosition(); taskbarOverlay?.EnsureAboveTaskbar(); };
         Closing += (_, e) => { if (!closing) { e.Cancel = true; Hide(); WriteHealth(); } };
-        Closed += (_, _) => Surface.Dispose();
+        Screens.Changed += OnScreensChanged;
+        ScalingChanged += (_, _) => { if (initialized) ClampPosition(); };
+        Closed += (_, _) => { Screens.Changed -= OnScreensChanged; Surface.Dispose(); };
         Opened += async (_, _) =>
         {
             if (initialized) return;
@@ -75,6 +80,9 @@ internal sealed class Widget : Window
             if (initialPosition is { } savedPosition) Position = savedPosition; else ResetPosition();
             ClampPosition();
             SavePosition();
+            if (OperatingSystem.IsWindows() && TryGetPlatformHandle()?.HandleDescriptor == "HWND")
+                taskbarOverlay = new WindowsTaskbarOverlay(this, () => !closing && Monitor.Preferences.Island);
+            taskbarOverlay?.EnsureAboveTaskbar();
             // Injected monitors are driven by the caller (including UI regression tests).
             if (monitor != null) return;
             if (args.Contains("--render-check")) { await RenderChecks(); return; }
@@ -88,7 +96,18 @@ internal sealed class Widget : Window
             if (!Monitor.Busy && DateTimeOffset.Now >= nextRefresh) await RefreshUsage();
         };
         Surface.PointerPressed += OnSurfacePressed;
-        Surface.PointerMoved += (_, e) => UpdateTooltip(e.GetPosition(Surface));
+        Surface.PointerMoved += (_, e) =>
+        {
+            if (dragOffset is { } offset)
+            {
+                var pointer = Surface.PointToScreen(e.GetPosition(Surface));
+                Position = ConstrainPosition(new(pointer.X - offset.X, pointer.Y - offset.Y));
+                e.Handled = true;
+            }
+            else UpdateTooltip(e.GetPosition(Surface));
+        };
+        Surface.PointerReleased += (_, e) => { dragOffset = null; e.Pointer.Capture(null); ClampPosition(); SavePosition(); };
+        Surface.PointerCaptureLost += (_, _) => { dragOffset = null; ClampPosition(); SavePosition(); };
         KeyDown += async (_, e) =>
         {
             if (e.Key == Key.Escape || e.Key == Key.F4 && e.KeyModifiers.HasFlag(KeyModifiers.Alt)) { Hide(); WriteHealth(); e.Handled = true; }
@@ -103,8 +122,8 @@ internal sealed class Widget : Window
         var choices = new List<MenuChoice> {
             new("Show / hide widget", ToggleVisible), new("Refresh now", () => _ = RefreshUsage()),
             new("Subscriptions", Children: Monitor.Providers.Select(p => new MenuChoice(p.Name, () => SetProvider(p, !prefs.IsEnabled(p)), prefs.IsEnabled(p), !prefs.IsEnabled(p) || Monitor.Enabled.Length > 1)).ToArray()),
-            new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact, Radio: true)]),
-            new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; SavePreferences(); BuildMenus(); }, prefs.Pinned),
+            new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", SetIsland, prefs.Island, Radio: true)]),
+            new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
             new("Opacity", Children: new[] {100,97,85,70}.Select(n => new MenuChoice($"{n}%", () => { prefs.Opacity = n / 100.0; ApplyOpacity(); SavePreferences(); BuildMenus(); }, Math.Abs(prefs.Opacity - n / 100.0) < 0.001, Radio: true)).ToArray()),
             new(PlatformServices.StartupLabel, () => {
@@ -196,7 +215,15 @@ internal sealed class Widget : Window
         if (!args.Contains("--render-check")) _ = RefreshUsage();
     }
     internal void SetPercentage(bool used) { Monitor.Preferences.ShowUsed = used; SavePreferences(); BuildMenus(); UpdateDisplay(); }
-    internal void SetCompact(bool compact) { Monitor.Preferences.Compact = compact; ApplyLayout(true); SavePreferences(); BuildMenus(); UpdateDisplay(); }
+    internal void SetCompact(bool compact) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = compact; ApplyLayout(true); SavePreferences(); BuildMenus(); UpdateDisplay(); }
+    internal void SetIsland()
+    {
+        var entering = !Monitor.Preferences.Island;
+        Monitor.Preferences.Island = true;
+        ApplyLayout(false);
+        if (entering) ResetPosition();
+        SavePreferences(); BuildMenus(); UpdateDisplay();
+    }
     private void ApplyOpacity() => Surface.Opacity = Math.Clamp(Monitor.Preferences.Opacity, 0.5, 1);
     private void ApplyLayout(bool keepBottomRight)
     {
@@ -205,7 +232,9 @@ internal sealed class Widget : Window
         Width = Surface.Width = size.Width; Height = Surface.Height = size.Height;
         ApplyOpacity();
         if (keepBottomRight && double.IsFinite(oldWidth) && double.IsFinite(oldHeight))
-            Position = new(Position.X + (int)((oldWidth - Width) * RenderScaling), Position.Y + (int)((oldHeight - Height) * RenderScaling));
+            Position = Monitor.Preferences.Island
+                ? new(Position.X + (int)((oldWidth - Width) * RenderScaling / 2), Position.Y)
+                : new(Position.X + (int)((oldWidth - Width) * RenderScaling), Position.Y + (int)((oldHeight - Height) * RenderScaling));
         ClampPosition();
         lastTip = ""; ToolTip.SetTip(Surface, null);
     }
@@ -213,26 +242,36 @@ internal sealed class Widget : Window
     {
         if (!e.GetCurrentPoint(Surface).Properties.IsLeftButtonPressed) return;
         var p = e.GetPosition(Surface);
-        if (Monitor.Preferences.Compact)
+        if (Monitor.Preferences.Island) { StartDrag(e); }
+        else if (Monitor.Preferences.Compact)
         {
             if (Surface.ProviderAt(p) == null) return;
-            if (e.ClickCount == 2) SetCompact(false); else BeginMoveDrag(e);
+            if (e.ClickCount == 2) SetCompact(false); else StartDrag(e);
         }
         else if (p.Y < 44)
         {
             if (p.X >= 282) Surface.ContextMenu?.Open(Surface);
             else if (p.X >= 248) { Hide(); WriteHealth(); }
             else if (p.X >= 215) await RefreshUsage();
-            else BeginMoveDrag(e);
+            else StartDrag(e);
         }
+    }
+    private void StartDrag(PointerPressedEventArgs e)
+    {
+        var pointer = Surface.PointToScreen(e.GetPosition(Surface));
+        dragOffset = new(pointer.X - Position.X, pointer.Y - Position.Y);
+        e.Pointer.Capture(Surface);
+        ToolTip.SetIsOpen(Surface, false);
+        e.Handled = true;
     }
     private void UpdateTooltip(Point point)
     {
         var p = Surface.ProviderAt(point);
         var text = p != null ? Details(p) : Surface.Notice ?? "Drag to move · right-click for settings";
-        if (!Monitor.Preferences.Compact && point.Y < 44)
+        if (!Monitor.Preferences.Island && !Monitor.Preferences.Compact && point.Y < 44)
             text = point.X >= 282 ? "Settings and Exit" : point.X >= 248 ? "Hide to tray / menu bar" : point.X >= 215 ? "Refresh now" : "Drag to move";
-        if (Monitor.Preferences.Compact) text += "\n\nDrag to move · double-click for cards · right-click for settings";
+        if (Monitor.Preferences.Island) text += "\n\nDrag to move · right-click for settings";
+        else if (Monitor.Preferences.Compact) text += "\n\nDrag to move · double-click for cards · right-click for settings";
         if (lastTip != text) { lastTip = text; ToolTip.SetTip(Surface, text); }
     }
     internal string Details(ProviderDefinition provider)
@@ -272,17 +311,47 @@ internal sealed class Widget : Window
         AutomationProperties.SetHelpText(Surface, string.Join("\n", Monitor.Enabled.Select(Details)));
         WriteHealth();
     }
-    internal void Restore() { ClampPosition(); Show(); Activate(); WriteHealth(); }
+    internal void Restore() { ClampPosition(); Show(); Activate(); taskbarOverlay?.EnsureAboveTaskbar(); WriteHealth(); }
     private void ToggleVisible() { if (IsVisible) { Hide(); WriteHealth(); } else Restore(); }
+    // Windows islands may overlap the taskbar. macOS keeps floating windows out
+    // of the menu bar and Dock; other layouts retain their desktop-only bounds.
+    internal static PixelRect PositionArea(PixelRect bounds, PixelRect workingArea, bool island, bool windows) =>
+        island && windows ? bounds : workingArea;
+    private void OnScreensChanged(object? sender, EventArgs e) { if (initialized) ClampPosition(); }
+    private PixelPoint ConstrainPosition(PixelPoint requested)
+    {
+        var screen = Screens.ScreenFromPoint(requested) ?? Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        PixelRect? bar = null;
+        if (Monitor.Preferences.Island)
+        {
+            if (OperatingSystem.IsWindows() && TryGetPlatformHandle()?.HandleDescriptor == "HWND" && screen != null)
+                bar = WindowsTaskbarOverlay.TaskbarOn(screen.Bounds);
+            var height = bar is { } taskbar ? ScreenPlacement.TaskbarHeight(taskbar.Height, screen!.Scaling) : 40;
+            if (Surface.IslandHeight != height || Height != height)
+            {
+                Surface.IslandHeight = height;
+                Height = Surface.Height = height;
+                Surface.InvalidateVisual();
+            }
+            if (bar is { } target) requested = ScreenPlacement.AlignTaskbar(requested, height, screen!.Scaling, target);
+        }
+        return ScreenPlacement.Constrain(requested, new Size(Width, Height), Screens.All.Select(display =>
+            (PositionArea(display.Bounds, display.WorkingArea, Monitor.Preferences.Island, OperatingSystem.IsWindows()), display.Scaling)));
+    }
     private void ClampPosition()
     {
-        var area = (Screens.ScreenFromWindow(this) ?? Screens.Primary)?.WorkingArea;
-        if (area is not { } a || !double.IsFinite(Width)) return;
-        Position = new(Math.Clamp(Position.X, a.X, Math.Max(a.X, a.Right - (int)(Width * RenderScaling))), Math.Clamp(Position.Y, a.Y, Math.Max(a.Y, a.Bottom - (int)(Height * RenderScaling))));
+        if (clamping || !double.IsFinite(Width) || !double.IsFinite(Height)) return;
+        clamping = true;
+        try { Position = ConstrainPosition(Position); }
+        finally { clamping = false; }
     }
     private void ResetPosition()
     {
-        if (Screens.Primary?.WorkingArea is { } a) Position = new(a.Right - (int)(Width * RenderScaling) - 18, a.Bottom - (int)(Height * RenderScaling) - 18);
+        if ((Screens.ScreenFromWindow(this) ?? Screens.Primary)?.WorkingArea is { } a)
+            Position = Monitor.Preferences.Island
+                ? new(a.X + (a.Width - (int)(Width * RenderScaling)) / 2, a.Y + (int)(8 * RenderScaling))
+                : new(a.Right - (int)(Width * RenderScaling) - 18, a.Bottom - (int)(Height * RenderScaling) - 18);
+        ClampPosition();
         SavePosition();
     }
     private void SavePosition() { Monitor.Preferences.X = Position.X; Monitor.Preferences.Y = Position.Y; SavePreferences(); }
@@ -294,7 +363,7 @@ internal sealed class Widget : Window
         {
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
-                Layout = Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
+                Layout = Monitor.Preferences.Island ? "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(path + ".tmp", path, true);
@@ -341,7 +410,7 @@ internal sealed class Widget : Window
     internal void PrepareExit()
     {
         if (closing) return;
-        SavePosition(); closing = true; timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
+        SavePosition(); closing = true; taskbarOverlay?.Dispose(); timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
     }
     internal void Quit() { PrepareExit(); Close(); (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(); }
     internal static string SafeError(Exception ex) => ex switch
