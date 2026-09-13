@@ -175,6 +175,30 @@ internal static class UiChecks
             ((INativeMenuItemExporterEventsImplBridge)NativeFind("Show / hide widget")).RaiseClicked();
             Dispatcher.UIThread.RunJobs();
             Check(widget.IsVisible, "Explicit native restore still works");
+            foreach (var layout in new[] { "Island bar", "Round badges (compact)", "Detailed cards" })
+            {
+                Click("Layout", layout);
+                widget.SetDarkMode(false);
+                var lightPixels = Pixels();
+                var beforeSize = new Size(widget.Width, widget.Height);
+                var beforePosition = widget.Position;
+                Click("Dark mode");
+                Check(Find("Dark mode").IsChecked && monitor.Preferences.DarkMode, "Dark mode menu reflects preference");
+                Check(widget.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark, "Window controls use the dark theme");
+                var darkPixels = Pixels();
+                Check(!lightPixels.SequenceEqual(darkPixels), "Dark mode changes rendered " + layout);
+                Check(beforeSize == new Size(widget.Width,widget.Height) && beforePosition == widget.Position, "Theme switching preserves layout and position");
+                Check(darkPixels[3] == 0, "Dark layout keeps transparent corners");
+                monitor.States[providers[0].Id].Error = "Offline";
+                Check(!darkPixels.SequenceEqual(Pixels()), "Dark layout distinguishes stale readings");
+                monitor.States[providers[0].Id].Error = null;
+                widget.SetPercentage(!monitor.Preferences.ShowUsed);
+                Check(!darkPixels.SequenceEqual(Pixels()), "Dark layout respects percentage selection");
+                widget.SaveRender("dark-" + (monitor.Preferences.Island ? "island" : monitor.Preferences.Compact ? "badges" : "cards") + ".png");
+                Check(System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!.DarkMode, "Dark preference survives serialization");
+                Click("Dark mode");
+                Check(widget.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light && !Find("Dark mode").IsChecked, "Light mode restores immediately");
+            }
             Console.WriteLine($"PASS: {count} UI checks (menus, sizing, hit testing, real pixels, transparency, stale state)");
             return 0;
         }

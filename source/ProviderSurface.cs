@@ -12,7 +12,14 @@ internal sealed class ProviderSurface : Control, IDisposable
 {
     private readonly UsageMonitor monitor;
     private readonly Dictionary<string, Bitmap> logos = new();
-    internal static readonly Color Bg = Color.Parse("#F2F3F6"), Card = Color.Parse("#FDFDFE"), Main = Color.Parse("#1E2026"), Muted = Color.Parse("#717681"), Amber = Color.Parse("#AF6F1E");
+    private Color Tone(string light, string dark) => Color.Parse(monitor.Preferences.DarkMode ? dark : light);
+    private Color Bg => Tone("#F2F3F6", "#202228");
+    private Color Card => Tone("#FDFDFE", "#292C34");
+    private Color Main => Tone("#1E2026", "#F0F2F7");
+    private Color Muted => Tone("#717681", "#AEB5C4");
+    private Color Amber => Tone("#AF6F1E", "#EDBA6B");
+    private Color Accent(Color color) => !monitor.Preferences.DarkMode ? color : Color.FromRgb(
+        (byte)(color.R + (255 - color.R) * 0.35), (byte)(color.G + (255 - color.G) * 0.35), (byte)(color.B + (255 - color.B) * 0.35));
     private static readonly Typeface Regular = new("Inter"), Bold = new("Inter", FontStyle.Normal, FontWeight.Bold);
     public bool Updating { get; set; }
     public string? Notice { get; set; }
@@ -23,6 +30,12 @@ internal sealed class ProviderSurface : Control, IDisposable
     public ProviderSurface(UsageMonitor monitor)
     {
         this.monitor = monitor;
+        ReloadLogos();
+    }
+    internal void ReloadLogos()
+    {
+        foreach (var logo in logos.Values) logo.Dispose();
+        logos.Clear();
         foreach (var p in monitor.Providers)
         {
             using var stream = AssetLoader.Open(new Uri($"avares://AIUsageWidget/Assets/{p.Id}.png"));
@@ -59,9 +72,9 @@ internal sealed class ProviderSurface : Control, IDisposable
             foreach (var (provider, index) in monitor.Enabled.Select((p, i) => (p, i))) Badge(g, provider, index * 100);
             return;
         }
-        Round(g, new(0.5, 0.5, 319, CardsHeight - 1), 20, Bg, Color.Parse("#D9DDE5"));
+        Round(g, new(0.5, 0.5, 319, CardsHeight - 1), 20, Bg, Tone("#D9DDE5", "#414650"));
         Txt(g, "Usage", 18, 11, 24, Main, true);
-        Round(g, new(100, 17, 60, 20), 10, Color.Parse("#E4E7ED"));
+        Round(g, new(100, 17, 60, 20), 10, Tone("#E4E7ED", "#343945"));
         Txt(g, monitor.Preferences.ShowUsed ? "% used" : "% left", 109, 20, 11, Muted, true);
         Txt(g, Updating ? "···" : "↻", 224, 10, 26, Muted);
         Txt(g, "—", 256, 12, 22, Muted);
@@ -70,8 +83,8 @@ internal sealed class ProviderSurface : Control, IDisposable
         foreach (var p in monitor.Enabled)
         {
             var state = monitor.States[p.Id];
-            Round(g, new(12, top + 2, 296, p.CardHeight), 16, Color.Parse("#E0E3E9"));
-            Round(g, new(12, top, 296, p.CardHeight), 16, Card, Color.Parse("#E9EBF0"));
+            Round(g, new(12, top + 2, 296, p.CardHeight), 16, Tone("#E0E3E9", "#16181E"));
+            Round(g, new(12, top, 296, p.CardHeight), 16, Card, Tone("#E9EBF0", "#414753"));
             Logo(g, p, new(24, top + 13, 17, 17));
             Txt(g, p.Name, 48, top + 12, 16, Main, true);
             var status = state.Stale ? "Stale · hover for details" : state.Reading == null ? Updating ? "Connecting" : "Unavailable" : "Live";
@@ -83,8 +96,8 @@ internal sealed class ProviderSurface : Control, IDisposable
             if (p.HasFreeResets)
             {
                 var resets = state.Reading?.FreeResets;
-                Round(g, new(205, top + p.CardHeight - 22, 91, 17), 8, Color.Parse("#EBF1FA"));
-                Txt(g, resets is { } n ? $"Free resets  {n}" : "Free resets  —", 211, top + p.CardHeight - 19, 10, state.Stale ? Amber : p.Accent, true);
+                Round(g, new(205, top + p.CardHeight - 22, 91, 17), 8, Tone("#EBF1FA", "#303E53"));
+                Txt(g, resets is { } n ? $"Free resets  {n}" : "Free resets  —", 211, top + p.CardHeight - 19, 10, state.Stale ? Amber : Accent(p.Accent), true);
             }
             top += p.CardHeight + 8;
         }
@@ -94,12 +107,12 @@ internal sealed class ProviderSurface : Control, IDisposable
     private void Island(DrawingContext g)
     {
         var center = IslandHeight / 2;
-        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Color.Parse("#CCD2DD"));
+        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
         double x = 12;
         foreach (var p in monitor.Enabled)
         {
             var state = monitor.States[p.Id];
-            if (x > 12) g.DrawLine(new Pen(Brush(Color.Parse("#E1E4EB"))), new(x - 6, center - 11), new(x - 6, center + 11));
+            if (x > 12) g.DrawLine(new Pen(Brush(Tone("#E1E4EB", "#414753"))), new(x - 6, center - 11), new(x - 6, center + 11));
             Logo(g, p, new(x + 2, center - 12, 12, 12));
             Txt(g, p.Name, x + 19, center - 13, 10, Main, true);
             var status = state.Stale ? "STALE" : state.Reading == null ? Updating ? "Loading" : "No data" : monitor.Preferences.ShowUsed ? "% used" : "% left";
@@ -108,11 +121,11 @@ internal sealed class ProviderSurface : Control, IDisposable
             {
                 var q = state.Reading?.Quotas.ElementAtOrDefault(i);
                 var value = q?.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
-                var color = state.Stale ? Amber : q?.Used >= 90 ? Color.Parse("#C14E4E") : q?.Used >= 75 ? Amber : p.Accent;
+                var color = state.Stale ? Amber : q?.Used >= 90 ? Tone("#C14E4E", "#F18484") : q?.Used >= 75 ? Amber : Accent(p.Accent);
                 var left = x + 60 + i * 64;
                 Txt(g, Label(p.QuotaLabels[i]), left, center - 15, 9, Muted);
                 Txt(g, value is { } v ? $"{v:0.#}%" : "—", left, center - 4, 14, state.Stale ? Amber : Main, true);
-                Round(g, new(left, center + 14, 48, 2), 1, Color.Parse("#E9EBF0"));
+                Round(g, new(left, center + 14, 48, 2), 1, Tone("#E9EBF0", "#414753"));
                 if (value is > 0) Round(g, new(left, center + 14, 48 * Math.Clamp(value.Value, 0, 100) / 100, 2), 1, color);
             }
             x += IslandProviderWidth(p);
@@ -123,10 +136,10 @@ internal sealed class ProviderSurface : Control, IDisposable
     {
         Txt(g, quota.Label, 24, y, 12, Muted);
         var value = quota.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
-        var color = stale ? Amber : quota.Used >= 90 ? Color.Parse("#C14E4E") : quota.Used >= 75 ? Amber : accent;
+        var color = stale ? Amber : quota.Used >= 90 ? Tone("#C14E4E", "#F18484") : quota.Used >= 75 ? Amber : Accent(accent);
         var label = Text(value is { } v ? $"{v:0.#}%" : "—", 20, value == null ? Muted : stale || quota.Used >= 75 ? color : Main, true);
         g.DrawText(label, new(296 - label.Width, y - 6));
-        Round(g, new(24, y + 19, 272, 4), 2, Color.Parse("#E9EBF0"));
+        Round(g, new(24, y + 19, 272, 4), 2, Tone("#E9EBF0", "#414753"));
         if (value is > 0) Round(g, new(24, y + 19, 272 * value.Value / 100, 4), 2, color);
         Txt(g, Widget.ResetText(quota.Reset, DateTimeOffset.Now), 24, y + 27, 11, Muted);
     }
@@ -134,10 +147,10 @@ internal sealed class ProviderSurface : Control, IDisposable
     private void Badge(DrawingContext g, ProviderDefinition p, double x)
     {
         var state = monitor.States[p.Id];
-        g.DrawEllipse(Brush(Color.Parse("#24302534")), null, new Rect(x, 1, 96, 95));
-        g.DrawEllipse(new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = [new GradientStop(Color.Parse("#FEFEFF"), 0), new GradientStop(Color.Parse("#E8EBF1"), 1)] }, new Pen(Brush(Color.Parse("#DCFFFFFF")), 0.8), new Rect(x + 2, 2, 92, 92));
+        g.DrawEllipse(Brush(Tone("#24302534", "#60000000")), null, new Rect(x, 1, 96, 95));
+        g.DrawEllipse(new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = [new GradientStop(Tone("#FEFEFF", "#353A45"), 0), new GradientStop(Tone("#E8EBF1", "#242730"), 1)] }, new Pen(Brush(Tone("#DCFFFFFF", "#805A6272")), 0.8), new Rect(x + 2, 2, 92, 92));
         var quotas = state.Reading?.Quotas ?? p.QuotaLabels.Select(q => new Quota(q, null, null)).ToArray();
-        for (var i = 0; i < Math.Min(2, quotas.Length); i++) Ring(g, quotas[i], x, 6 + i * 4, i == 0 ? p.Accent : Color.Parse("#99AAC4"), state.Stale);
+        for (var i = 0; i < Math.Min(2, quotas.Length); i++) Ring(g, quotas[i], x, 6 + i * 4, i == 0 ? Accent(p.Accent) : Tone("#99AAC4", "#9EAFCE"), state.Stale);
         Logo(g, p, new(x + 23, 19, 12, 12));
         Txt(g, p.Name, x + 39, 19, 10, Muted, true);
         string Percent(Quota? q) => q?.Used is { } n ? $"{(monitor.Preferences.ShowUsed ? n : 100 - n):0.#}%" : "—";
@@ -161,11 +174,11 @@ internal sealed class ProviderSurface : Control, IDisposable
     private void Ring(DrawingContext g, Quota quota, double x, double inset, Color color, bool stale)
     {
         var rect = new Rect(x + inset, inset, 96 - inset * 2, 96 - inset * 2);
-        g.DrawEllipse(null, new Pen(Brush(Color.Parse("#DDE1E9")), 2), rect);
+        g.DrawEllipse(null, new Pen(Brush(Tone("#DDE1E9", "#454C59")), 2), rect);
         if (quota.Used is not { } used) return;
         var value = monitor.Preferences.ShowUsed ? used : 100 - used;
         if (value <= 0) return;
-        var pen = new Pen(Brush(stale ? Amber : used >= 90 ? Color.Parse("#C14E4E") : color), 2, lineCap: PenLineCap.Round);
+        var pen = new Pen(Brush(stale ? Amber : used >= 90 ? Tone("#C14E4E", "#F18484") : color), 2, lineCap: PenLineCap.Round);
         if (value >= 100) { g.DrawEllipse(null, pen, rect); return; }
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())

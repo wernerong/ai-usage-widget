@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking Codex and Grok usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.6.0](https://github.com/wernerong/ai-usage-widget/tree/v1.6.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.7.0](https://github.com/wernerong/ai-usage-widget/tree/v1.7.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Features
 
@@ -12,6 +12,7 @@ Current release: **[v1.6.0](https://github.com/wernerong/ai-usage-widget/tree/v1
 - Grok weekly usage and prepaid credit balance.
 - Percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
 - Independent provider refreshes every minute; stale readings remain visible when requests fail.
+- Dark mode for all layouts, with a saved preference and matching widget menus and tooltips. Native macOS menu bar menus follow the system appearance.
 - Drag to move, remembered position, always on top, and adjustable opacity.
 - Windows tray and macOS menu bar controls; both installers enable launch at login, with an option to disable it.
 - Application icons embedded in the Windows executable and macOS app bundle.
@@ -34,6 +35,8 @@ The bundle permits macOS 13, with startup reported working on 13.5. This compati
 Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select **Codex**, **Grok**, or both. Both start enabled for compatibility, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
 
 Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Preferences are preserved across restarts and Windows upgrades from v1.4.0.
+
+Use **Dark mode** in the widget or tray/menu bar menu to switch between dark and light appearance. The choice applies immediately to every layout and persists across restarts.
 
 ## Island bar
 

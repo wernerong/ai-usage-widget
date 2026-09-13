@@ -4,6 +4,16 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-13
+
+### Added
+
+- Add a persistent Dark mode toggle for island, badge, and card layouts, with contrasting provider logos, usage colors, widget menus, and tooltips. Native macOS menus retain the system appearance.
+
+### Validation
+
+- Pass 137 UI checks covering theme switching, persistence, layout stability, transparency, stale readings, and percentage selection. Windows and macOS builds succeed; native Mac dark-mode testing remains pending.
+
 ## [1.6.0] - 2026-09-13
 
 ### Fixed
@@ -73,7 +83,8 @@ The initial repository commit (`3e6fefa`) declares version 1.3.1. Earlier releas
 - Automatic refresh, reset countdowns, balances, and Codex free-reset counts.
 - Tray controls, saved preferences, and optional Windows startup.
 
-[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/wernerong/ai-usage-widget/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/wernerong/ai-usage-widget/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/wernerong/ai-usage-widget/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/wernerong/ai-usage-widget/tree/v1.5.1
 [1.4.0]: https://github.com/wernerong/ai-usage-widget/tree/v1.4.0

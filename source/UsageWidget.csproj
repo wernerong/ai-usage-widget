@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>AIUsageWidget</AssemblyName>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <UseAppHost>true</UseAppHost>
     <ApplicationIcon>Assets/widget.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>

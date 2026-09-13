@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.Styling;
 
 namespace UsageWidget;
 
@@ -56,6 +57,7 @@ internal sealed class Widget : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
         Surface = new ProviderSurface(Monitor);
         Content = Surface;
+        ApplyTheme();
         AutomationProperties.SetName(Surface, "AI Usage Widget");
         using (var stream = AssetLoader.Open(new Uri("avares://AIUsageWidget/Assets/widget.png"))) Icon = new WindowIcon(stream);
         if (createTray)
@@ -123,6 +125,7 @@ internal sealed class Widget : Window
             new("Show / hide widget", ToggleVisible), new("Refresh now", () => _ = RefreshUsage()),
             new("Subscriptions", Children: Monitor.Providers.Select(p => new MenuChoice(p.Name, () => SetProvider(p, !prefs.IsEnabled(p)), prefs.IsEnabled(p), !prefs.IsEnabled(p) || Monitor.Enabled.Length > 1)).ToArray()),
             new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", SetIsland, prefs.Island, Radio: true)]),
+            new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
             new("Opacity", Children: new[] {100,97,85,70}.Select(n => new MenuChoice($"{n}%", () => { prefs.Opacity = n / 100.0; ApplyOpacity(); SavePreferences(); BuildMenus(); }, Math.Abs(prefs.Opacity - n / 100.0) < 0.001, Radio: true)).ToArray()),
@@ -201,7 +204,7 @@ internal sealed class Widget : Window
     }
     private async Task ShowError(string message)
     {
-        var dialog = new Window { Title = "AI Usage Widget", Width = 380, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var dialog = new Window { RequestedThemeVariant = RequestedThemeVariant, Title = "AI Usage Widget", Width = 380, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var close = new Button { Content = "OK", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
         close.Click += (_, _) => dialog.Close();
         dialog.Content = new StackPanel { Margin = new Thickness(20), Spacing = 16, Children = { new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }, close } };
@@ -213,6 +216,16 @@ internal sealed class Widget : Window
         if (!Monitor.SetEnabled(provider, enabled)) return;
         ApplyLayout(true); SavePreferences(); BuildMenus();
         if (!args.Contains("--render-check")) _ = RefreshUsage();
+    }
+    private void ApplyTheme()
+    {
+        RequestedThemeVariant = Monitor.Preferences.DarkMode ? ThemeVariant.Dark : ThemeVariant.Light;
+        if (Application.Current != null) Application.Current.RequestedThemeVariant = RequestedThemeVariant;
+    }
+    internal void SetDarkMode(bool dark)
+    {
+        Monitor.Preferences.DarkMode = dark;
+        ApplyTheme(); Surface.ReloadLogos(); SavePreferences(); BuildMenus(); UpdateDisplay();
     }
     internal void SetPercentage(bool used) { Monitor.Preferences.ShowUsed = used; SavePreferences(); BuildMenus(); UpdateDisplay(); }
     internal void SetCompact(bool compact) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = compact; ApplyLayout(true); SavePreferences(); BuildMenus(); UpdateDisplay(); }
@@ -363,7 +376,7 @@ internal sealed class Widget : Window
         {
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
-                Layout = Monitor.Preferences.Island ? "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
+                Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Island ? "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(path + ".tmp", path, true);
