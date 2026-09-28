@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace UsageWidget;
 
-// Read-only integration with the Windows Grok Bot desktop login. Tokens are never
+// Read-only integration with the Grok Bot desktop login. Tokens are never
 // persisted or refreshed here: Grok Bot owns its login and refresh-token rotation.
 internal static class GrokBotProvider
 {
@@ -17,26 +17,37 @@ internal static class GrokBotProvider
 
     public static async Task<Reading> Read(CancellationToken token)
     {
-        if (!OperatingSystem.IsWindows())
-            throw new InvalidOperationException("Grok Bot monitoring currently requires its Windows desktop app.");
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Grok Bot");
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
+            throw new InvalidOperationException("Grok Bot monitoring supports Windows and macOS desktop logins.");
+        var folder = LoginFolder(OperatingSystem.IsMacOS(), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
         string access;
         string? team;
         try
         {
             using var store = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "sand-secrets.json"), token));
-            using var state = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "Local State"), token));
-            var wrappedKey = Convert.FromBase64String(Json.Str(Json.Get(state.RootElement, "os_crypt"), "encrypted_key")!);
-            if (!wrappedKey.AsSpan().StartsWith("DPAPI"u8)) throw new CryptographicException();
-            var key = Unprotect(wrappedKey[5..]);
+            // Validate the selected account before asking the user for Keychain access.
+            ReadAccount(store.RootElement, value => value);
+            byte[] key;
+            if (OperatingSystem.IsMacOS())
+                key = await MacGrokBotStorage.ReadKey(token);
+            else
+            {
+                using var state = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "Local State"), token));
+                var wrappedKey = Convert.FromBase64String(Json.Str(Json.Get(state.RootElement, "os_crypt"), "encrypted_key")!);
+                if (!wrappedKey.AsSpan().StartsWith("DPAPI"u8)) throw new CryptographicException();
+                key = Unprotect(wrappedKey[5..]);
+            }
             try
             {
-                (access, team) = ReadAccount(store.RootElement, value => Decrypt(value, key));
+                (access, team) = ReadAccount(store.RootElement, value => OperatingSystem.IsMacOS()
+                    ? MacGrokBotStorage.Decrypt(value, key) : Decrypt(value, key));
             }
             finally { CryptographicOperations.ZeroMemory(key); }
         }
         catch (OperationCanceledException) { throw; }
-        catch { throw new InvalidOperationException("Open Grok Bot and sign in on this Windows account, then refresh the widget."); }
+        catch (MacKeychainException) { throw; }
+        catch { throw new InvalidOperationException("Open Grok Bot and sign in on this computer, then refresh the widget."); }
 
         var weekly = await Request(Client, "GetSandUsageStatus", access, team, token);
         JsonElement spending = default;
@@ -46,6 +57,10 @@ internal static class GrokBotProvider
         { /* The weekly allowance remains useful if the spending request fails. */ }
         return Parse(weekly, spending);
     }
+
+    internal static string LoginFolder(bool mac, string home, string appData) => mac
+        ? Path.Combine(home, "Library", "Application Support", "Grok Bot")
+        : Path.Combine(appData, "Grok Bot");
 
     internal static (string Access, string? Team) ReadAccount(JsonElement store, Func<string, string> decrypt)
     {

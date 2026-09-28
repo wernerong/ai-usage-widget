@@ -30,6 +30,16 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and project version differ.' }
       - name: Build
         run: dotnet build source/UsageWidget.csproj -c Release --no-restore
+      - name: Verify Grok Bot macOS application name
+        if: matrix.rid == 'osx-arm64'
+        shell: bash
+        run: |
+          stage=$(mktemp -d)
+          trap 'hdiutil detach "$stage/mount" >/dev/null 2>&1 || true' EXIT
+          curl --fail --location --retry 2 'https://downloads.cursor.com/grokbot/stable/darwin-arm64/0.61.0/Grok_Bot_0.61.0.dmg' -o "$stage/grok.dmg"
+          hdiutil attach -readonly -nobrowse -mountpoint "$stage/mount" "$stage/grok.dmg"
+          name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$stage/mount/Grok Bot.app/Contents/Info.plist")
+          test "$name" = 'Grok Bot'
       - name: Check provider parsing and refresh behavior
         shell: pwsh
         run: |
@@ -99,9 +109,9 @@ jobs:
           - Mac Apple Silicon: `osx-arm64.pkg`
           - Mac Intel: `osx-x64.pkg`
 
-          Includes Grok Bot usage on Windows, compact island layouts, and a bundled runtime. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
+          Includes Grok Bot usage on Windows and macOS, compact island layouts, and a bundled runtime. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
 
-          These installers are unsigned; macOS packages are not notarized. Windows SmartScreen/macOS Gatekeeper may require additional confirmation. Grok Bot authentication currently supports Windows only.
+          These installers are unsigned; macOS packages are not notarized. Windows SmartScreen/macOS Gatekeeper may require additional confirmation. On Mac, sign in to Grok Bot, enable it in Subscriptions, and allow Grok Bot Safe Storage access if Keychain asks.
           NOTES
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "AI Usage Widget $GITHUB_REF_NAME" --notes-file /tmp/release-notes.md --draft

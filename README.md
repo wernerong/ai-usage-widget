@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking Codex, Grok, and Grok Bot usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.8.1](https://github.com/wernerong/ai-usage-widget/tree/v1.8.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.9.0](https://github.com/wernerong/ai-usage-widget/tree/v1.9.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.8.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.8.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.8.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.9.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.9.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.9.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before upgrading. Existing preferences and provider logins are preserved.
 
@@ -26,7 +26,7 @@ To remove the Mac app, turn off **Start at login**, quit the widget, and move it
 - Compact round badges, detailed cards, or a slim island bar, sized to the selected providers.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
-- Grok Bot weekly usage, reset time, and on-demand spending (Windows desktop login).
+- Grok Bot weekly usage, reset time, and on-demand spending (Windows and macOS desktop login).
 - Whole-number percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
 - Independent provider refreshes every minute; stale readings remain visible when requests fail.
 - Dark mode for all layouts, with a saved preference and matching widget menus and tooltips. Native macOS menu bar menus follow the system appearance.
@@ -42,7 +42,7 @@ Claude is not yet supported. The provider registry allows future integrations wi
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build. Self-contained packages include the runtime.
 - For Codex: Codex CLI installed and signed in with a ChatGPT account exposing account rate limits.
 - For Grok: Grok CLI / Build signed in with OAuth (`grok login`).
-- For Grok Bot: its Windows desktop app installed and signed in under the same Windows account.
+- For Grok Bot: its desktop app installed and signed in under the same Windows or macOS user account.
 
 Only selected providers need logins. A missing login for one provider does not prevent another from updating. Selecting a provider enables monitoring; it does not purchase a subscription or sign you in.
 
@@ -182,8 +182,13 @@ References: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Grok
 
 This project is not affiliated with or endorsed by OpenAI or xAI.
 
-## Grok Bot connection (Windows)
+## Grok Bot connection (Windows and macOS)
 
-Enable **Subscriptions → Grok Bot**. This is a separate allowance from Grok CLI / Build. The widget reads the active desktop account from `%APPDATA%\Grok Bot\sand-secrets.json` and uses Windows DPAPI and the app's encrypted local key to unlock its access token in memory. It does not copy credentials into widget settings, modify Grok Bot files, or rotate refresh tokens. Keep Grok Bot signed in; if its access token expires, open the app and refresh the widget. macOS Grok Bot authentication is not yet supported.
+Enable **Subscriptions → Grok Bot**. This is a separate allowance from Grok CLI / Build. Install and sign in to Grok Bot on the same computer first.
+
+- **Windows:** the widget reads `%APPDATA%\Grok Bot\sand-secrets.json` and unlocks the active login with Windows DPAPI and the app's encrypted local key.
+- **macOS:** the widget reads `~/Library/Application Support/Grok Bot/sand-secrets.json` and uses the **Grok Bot Safe Storage** password from your login Keychain to unlock Electron's encrypted login. macOS may ask you to allow Keychain access. If access is denied or the Keychain is locked, the widget shows instructions instead of an invented usage value.
+
+Credentials are decrypted only in memory. The widget does not copy them into settings, modify Grok Bot files, or rotate refresh tokens. Keep Grok Bot signed in; if its access token expires, open the app and refresh the widget. The same weekly percentage, reset time, and on-demand spending are available in every layout on both platforms.
 
 The read-only `GetSandUsageStatus` and `GetCurrentPeriodUsage` requests use Cursor's authenticated dashboard service. These are internal app endpoints and may change. Weekly `usagePercent` means **used**; the remaining display subtracts it from 100. On-demand amounts are converted from cents and shown separately from the weekly allowance. Missing percentages are unavailable, never treated as zero. If spending fails, the weekly reading remains available with “On-demand unavailable.” Pooled enterprise allowances do not expose an individual percentage.

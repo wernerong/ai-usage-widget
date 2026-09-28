@@ -4,6 +4,14 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-28
+
+### Added
+
+- Support Grok Bot desktop logins on macOS through its existing Safe Storage Keychain item, with credentials decrypted only in memory.
+- Show the same weekly percentage, reset time, and on-demand spending in all layouts on Windows and Mac. Explain missing, locked, or denied Keychain access.
+- Validate the macOS encrypted storage format and exercise an isolated synthetic Keychain on Apple Silicon and Intel build runners.
+
 ## [1.8.1] - 2026-09-28
 
 ### Added
