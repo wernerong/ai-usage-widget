@@ -55,7 +55,7 @@ Filename: "{app}\AIUsageWidget.exe"; Description: "Launch AI Usage Widget"; Flag
 procedure InitializeWizard;
 begin
   // Preserve startup preference when upgrading a script or installer deployment.
-  if FileExists(ExpandConstant('{app}\AIUsageWidget.exe')) then
+  if FileExists(ExpandConstant('{localappdata}\Programs\AIUsageWidget\AIUsageWidget.exe')) then
   begin
     if RegValueExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'AIUsageWidget') then
       WizardSelectTasks('startup')
