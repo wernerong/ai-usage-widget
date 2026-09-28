@@ -54,13 +54,20 @@ internal static class MacGrokBotChecks
 
     private static async Task Security(params string[] arguments)
     {
+        Console.WriteLine("Synthetic Keychain fixture: " + arguments[0]);
         using var process = new Process { StartInfo = new ProcessStartInfo("/usr/bin/security")
             { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true } };
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
         process.Start();
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            process.Kill(true);
+            throw new Exception("Synthetic Keychain fixture timed out: " + arguments[0]);
+        }
         await Task.WhenAll(output, error);
         if (process.ExitCode != 0) throw new Exception("Synthetic Keychain fixture command failed: " + arguments[0]);
     }
