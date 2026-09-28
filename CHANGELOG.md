@@ -4,6 +4,8 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-28
+
 ### Changed
 
 - Display whole-number percentages throughout the widget and preserve its position when switching to the island bar.

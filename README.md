@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking Codex, Grok, and Grok Bot usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.7.0](https://github.com/wernerong/ai-usage-widget/tree/v1.7.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.8.0](https://github.com/wernerong/ai-usage-widget/tree/v1.8.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Features
 
