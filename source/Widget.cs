@@ -33,7 +33,8 @@ internal sealed class Widget : Window
     private bool contextMenuDirty = true, nativeMenuDirty = true;
     internal static ProviderDefinition[] CreateProviders(GrokProvider grok) => [
         new("codex", "Codex", "https://chatgpt.com/codex/settings/usage", "live Codex account limits", Color.Parse("#3675C4"), ["5 hours", "Weekly"], true, true, CodexProvider.Read),
-        new("grok", "Grok", "https://grok.com?_s=usage", "Grok CLI billing", Color.Parse("#8074AA"), ["Weekly"], false, true, grok.Read)
+        new("grok", "Grok", "https://grok.com?_s=usage", "Grok CLI billing", Color.Parse("#8074AA"), ["Weekly"], false, true, grok.Read),
+        new("grok-bot", "Grok Bot", "https://cursor.com/dashboard", "Grok Bot desktop weekly usage", Color.Parse("#568FAD"), ["Weekly"], false, false, GrokBotProvider.Read)
     ];
     public Widget(string[] args, UsageMonitor? monitor = null, bool createTray = true, bool persist = true)
     {
@@ -46,7 +47,7 @@ internal sealed class Widget : Window
         if (args.Contains("--island")) Monitor.Preferences.Island = true;
         if (args.Contains("--render-check"))
             foreach (var p in Monitor.Providers) Monitor.States[p.Id].Reading = Fixture(p);
-        initialPosition = !args.Contains("--island") && Monitor.Preferences.X is { } savedX && Monitor.Preferences.Y is { } savedY ? new PixelPoint(savedX, savedY) : null;
+        initialPosition = Monitor.Preferences.X is { } savedX && Monitor.Preferences.Y is { } savedY ? new PixelPoint(savedX, savedY) : null;
         Title = "AI Usage Widget";
         SystemDecorations = SystemDecorations.None;
         CanResize = false;
@@ -124,7 +125,7 @@ internal sealed class Widget : Window
         var choices = new List<MenuChoice> {
             new("Show / hide widget", ToggleVisible), new("Refresh now", () => _ = RefreshUsage()),
             new("Subscriptions", Children: Monitor.Providers.Select(p => new MenuChoice(p.Name, () => SetProvider(p, !prefs.IsEnabled(p)), prefs.IsEnabled(p), !prefs.IsEnabled(p) || Monitor.Enabled.Length > 1)).ToArray()),
-            new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", SetIsland, prefs.Island, Radio: true)]),
+            new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", () => SetIsland(), prefs.Island && !prefs.CompactIsland, Radio: true), new("Compact island", () => SetIsland(true), prefs.Island && prefs.CompactIsland, Radio: true)]),
             new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
@@ -229,12 +230,11 @@ internal sealed class Widget : Window
     }
     internal void SetPercentage(bool used) { Monitor.Preferences.ShowUsed = used; SavePreferences(); BuildMenus(); UpdateDisplay(); }
     internal void SetCompact(bool compact) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = compact; ApplyLayout(true); SavePreferences(); BuildMenus(); UpdateDisplay(); }
-    internal void SetIsland()
+    internal void SetIsland(bool compact = false)
     {
-        var entering = !Monitor.Preferences.Island;
         Monitor.Preferences.Island = true;
+        Monitor.Preferences.CompactIsland = compact;
         ApplyLayout(false);
-        if (entering) ResetPosition();
         SavePreferences(); BuildMenus(); UpdateDisplay();
     }
     private void ApplyOpacity() => Surface.Opacity = Math.Clamp(Monitor.Preferences.Opacity, 0.5, 1);
@@ -297,7 +297,7 @@ internal sealed class Widget : Window
             lines.Add($"Last successful refresh: {r.Fetched.LocalDateTime:ddd d MMM, HH:mm:ss}");
             foreach (var q in r.Quotas)
             {
-                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0.##}% used · {100-n:0.##}% left" : "unavailable")}");
+                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0}% used · {100-n:0}% left" : "unavailable")}");
                 if (q.Reset != null) lines.Add($"Resets {q.Reset.Value.LocalDateTime:ddd d MMM, HH:mm:ss}");
                 if (q.Note != null) lines.Add(q.Note);
             }
@@ -318,8 +318,9 @@ internal sealed class Widget : Window
     private void UpdateDisplay()
     {
         if (closing) return;
+        if (Monitor.Preferences.Island && Monitor.Preferences.CompactIsland && Width != Surface.DesiredWidgetSize.Width) ApplyLayout(false);
         Surface.InvalidateVisual();
-        var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0.#}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : "unavailable") ?? ["unavailable"])));
+        var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : "unavailable") ?? ["unavailable"])));
         if (tray != null) tray.ToolTipText = summary.Length > 127 ? summary[..124] + "…" : summary;
         AutomationProperties.SetHelpText(Surface, string.Join("\n", Monitor.Enabled.Select(Details)));
         WriteHealth();
@@ -376,7 +377,7 @@ internal sealed class Widget : Window
         {
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
-                Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Island ? "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
+                Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Island ? Monitor.Preferences.CompactIsland ? "compact-island" : "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(path + ".tmp", path, true);
@@ -384,7 +385,7 @@ internal sealed class Widget : Window
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
-    internal static Reading Fixture(ProviderDefinition p) => new(p.Name, p.QuotaLabels.Select((label, i) => new Quota(label, i == 0 ? 25 : 60, DateTimeOffset.Now.AddHours(i == 0 ? 3 : 48))).ToArray(), "Extra credits  US$20.00", DateTimeOffset.Now, p.HasFreeResets ? 3 : null);
+    internal static Reading Fixture(ProviderDefinition p) => new(p.Name, p.QuotaLabels.Select((label, i) => new Quota(label, i == 0 ? 25 : 60, DateTimeOffset.Now.AddHours(i == 0 ? 3 : 48))).ToArray(), p.Id == "grok-bot" ? "On-demand  US$0.00 / $40.00" : "Extra credits  US$20.00", DateTimeOffset.Now, p.HasFreeResets ? 3 : null);
     internal void SaveRender(string name)
     {
         Surface.Measure(new(Width, Height)); Surface.Arrange(new(0, 0, Width, Height));

@@ -4,6 +4,18 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+### Changed
+
+- Display whole-number percentages throughout the widget and preserve its position when switching to the island bar.
+
+### Added
+
+- Add Compact island with provider logos and whole-number usage values, full hover details, and an optional Codex 5-hour value shown only when available. Keep the detailed island option and persist the compact selection.
+
+- Add opt-in Grok Bot monitoring on Windows using the active desktop login: weekly used/remaining percentage, reset time, and on-demand spending. Credentials stay in the app's encrypted storage and are only decrypted in memory.
+- Support Grok Bot in badge, card, and island layouts, including dark mode. Size island labels to avoid overlap and shorten the card footer when three providers are selected.
+- Explain expired login and unavailable usage without displaying fabricated balances. Grok Bot token renewal remains owned by its desktop app.
+
 ## [1.7.0] - 2026-09-13
 
 ### Added

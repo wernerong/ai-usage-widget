@@ -13,6 +13,7 @@ internal static class UiChecks
     public static int Main()
     {
         AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+        GrokBotChecks.Run().GetAwaiter().GetResult();
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }
         using var grok = new GrokProvider();
@@ -82,9 +83,12 @@ internal static class UiChecks
             }
             foreach (var p in providers) widget.SetProvider(p, true);
             Click("Layout", "Round badges (compact)");
-            Check(widget.Width == 196 && widget.Surface.ProviderAt(new(148,48))?.Id == "grok", "Both-provider badge order and width");
+            Check(widget.Width == 100 * providers.Length - 4 && widget.Surface.ProviderAt(new(148,48))?.Id == "grok", "All-provider badge order and width");
+            widget.Position = new PixelPoint(40, 30);
+            var beforeIsland = widget.Position;
             Click("Layout", "Island bar");
-            Check(widget.Width == 336 && widget.Height == 40, "Island fits both providers in a slim bar");
+            Check(widget.Position == beforeIsland, "Switching to island preserves the current position");
+            Check(widget.Width == 24 + providers.Sum(ProviderSurface.IslandProviderWidth) && widget.Height == 40, "Island fits all providers in a slim bar");
             Check(Find("Layout", "Island bar").IsChecked && !Find("Layout", "Round badges (compact)").IsChecked && !Find("Layout", "Detailed cards").IsChecked, "Island layout selection is exclusive");
             Check(widget.Surface.ProviderAt(new(30, 25)) == providers[0] && widget.Surface.ProviderAt(new(250, 25)) == providers[1], "Island tooltips target the correct providers");
             Check(ScreenPlacement.TaskbarHeight(96, 2) == 40, "Taskbar fitting accounts for 200 percent scaling");
@@ -149,7 +153,7 @@ internal static class UiChecks
             widget.SaveRender("island-preview.png");
             Click("Layout", "Detailed cards");
             Check(!monitor.Preferences.Island, "Switching away clears island selection");
-            Check(widget.Height == 346, "Both cards restore full height");
+            Check(widget.Height == 63 + providers.Sum(p => p.CardHeight + 8), "All cards restore full height");
             Check(ReferenceEquals(originalContext, widget.Surface.ContextMenu) && ReferenceEquals(originalNative, widget.NativeMenu), "Menu objects survive all settings callbacks");
             Check(ReferenceEquals(originalNativeItem, widget.NativeMenu.Items[0]), "Native items are not replaced from settings callbacks");
             widget.RefreshNativeMenu();
@@ -199,6 +203,34 @@ internal static class UiChecks
                 Click("Dark mode");
                 Check(widget.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light && !Find("Dark mode").IsChecked, "Light mode restores immediately");
             }
+            foreach (var p in providers) { widget.SetProvider(p, true); monitor.States[p.Id].Reading = Widget.Fixture(p); }
+            widget.Position = new PixelPoint(40, 30);
+            Click("Layout", "Compact island");
+            Check(widget.Position == new PixelPoint(40, 30), "Compact island keeps its position");
+            Check(widget.Width == 326, "Compact island fits three providers with both Codex quotas");
+            var codex = providers.Single(p => p.Id == "codex");
+            var codexState = monitor.States[codex.Id];
+            var completeReading = Widget.Fixture(codex);
+            codexState.Reading = completeReading with { Quotas = [new("5 hours", null, null), new("Weekly", 40, null)] };
+            widget.SetPercentage(false);
+            Check(widget.Width == 246 && widget.Surface.CompactQuotas(codex).Single().Label == "Weekly", "Missing Codex 5h disappears and shrinks the island");
+            Check(widget.Surface.ProviderAt(new(120, 20))?.Id == "grok" && widget.Surface.ProviderAt(new(200, 20))?.Id == "grok-bot", "Compact hit testing follows dynamic quota widths");
+            foreach (var dark in new[] { false, true })
+            {
+                widget.SetDarkMode(dark);
+                widget.SaveRender(dark ? "compact-island-dark.png" : "compact-island-light.png");
+                var left = Pixels();
+                widget.SetPercentage(true);
+                Check(!left.SequenceEqual(Pixels()), "Compact island respects used and remaining display");
+                widget.SetPercentage(false);
+            }
+            codexState.Reading = completeReading;
+            widget.SetPercentage(false);
+            Check(widget.Width == 326, "Codex 5h reappears when available");
+            widget.SaveRender("compact-island-both-limits.png");
+            Check(System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!.CompactIsland, "Compact island selection persists");
+            Click("Layout", "Island bar");
+            Check(!monitor.Preferences.CompactIsland && widget.Width > 326, "Detailed island remains available");
             Console.WriteLine($"PASS: {count} UI checks (menus, sizing, hit testing, real pixels, transparency, stale state)");
             return 0;
         }

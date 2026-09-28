@@ -25,8 +25,18 @@ internal sealed class ProviderSurface : Control, IDisposable
     public string? Notice { get; set; }
     internal double IslandHeight { get; set; } = 40;
     public double CardsHeight => 63 + monitor.Enabled.Sum(p => p.CardHeight + 8);
-    internal static double IslandProviderWidth(ProviderDefinition p) => 60 + 64 * p.QuotaLabels.Length;
-    public Size DesiredWidgetSize => monitor.Preferences.Island ? new(24 + monitor.Enabled.Sum(IslandProviderWidth), IslandHeight) : monitor.Preferences.Compact ? new(monitor.Enabled.Length * 100 - 4, 96) : new(320, CardsHeight);
+    private static double IslandNameWidth(ProviderDefinition p) => Math.Max(60, 27 + Text(p.Name, 10, Colors.Black, true).Width);
+    internal static double IslandProviderWidth(ProviderDefinition p) => IslandNameWidth(p) + 64 * p.QuotaLabels.Length;
+    internal Quota[] CompactQuotas(ProviderDefinition p)
+    {
+        var quotas = monitor.States[p.Id].Reading?.Quotas ?? [];
+        var weekly = quotas.FirstOrDefault(q => q.Label == "Weekly") ?? new Quota("Weekly", null, null);
+        var fiveHour = quotas.FirstOrDefault(q => q.Label == "5 hours" && q.Used is not null);
+        return p.Id == "codex" && fiveHour != null ? [fiveHour, weekly] : [weekly];
+    }
+    internal double DisplayIslandWidth(ProviderDefinition p) => monitor.Preferences.CompactIsland
+        ? 30 + CompactQuotas(p).Length * (CompactQuotas(p).Length > 1 ? 62 : 44) : IslandProviderWidth(p);
+    public Size DesiredWidgetSize => monitor.Preferences.Island ? new(24 + monitor.Enabled.Sum(DisplayIslandWidth), IslandHeight) : monitor.Preferences.Compact ? new(monitor.Enabled.Length * 100 - 4, 96) : new(320, CardsHeight);
     public ProviderSurface(UsageMonitor monitor)
     {
         this.monitor = monitor;
@@ -101,11 +111,14 @@ internal sealed class ProviderSurface : Control, IDisposable
             }
             top += p.CardHeight + 8;
         }
-        Txt(g, string.Join(" + ", monitor.Enabled.Select(p => p.Name)), 18, CardsHeight - 17, 10, Muted);
+        var names = string.Join(" + ", monitor.Enabled.Select(p => p.Name));
+        if (Text(names, 10, Muted).Width > 172) names = $"{monitor.Enabled.Length} providers";
+        Txt(g, names, 18, CardsHeight - 17, 10, Muted);
         Txt(g, Notice != null ? "Settings error · hover" : Updating ? "Updating…" : "Updates every minute", 198, CardsHeight - 17, 10, Notice != null ? Amber : Muted);
     }
     private void Island(DrawingContext g)
     {
+        if (monitor.Preferences.CompactIsland) { CompactIsland(g); return; }
         var center = IslandHeight / 2;
         Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
         double x = 12;
@@ -122,13 +135,37 @@ internal sealed class ProviderSurface : Control, IDisposable
                 var q = state.Reading?.Quotas.ElementAtOrDefault(i);
                 var value = q?.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
                 var color = state.Stale ? Amber : q?.Used >= 90 ? Tone("#C14E4E", "#F18484") : q?.Used >= 75 ? Amber : Accent(p.Accent);
-                var left = x + 60 + i * 64;
+                var left = x + IslandNameWidth(p) + i * 64;
                 Txt(g, Label(p.QuotaLabels[i]), left, center - 15, 9, Muted);
-                Txt(g, value is { } v ? $"{v:0.#}%" : "—", left, center - 4, 14, state.Stale ? Amber : Main, true);
+                Txt(g, value is { } v ? $"{v:0}%" : "—", left, center - 4, 14, state.Stale ? Amber : Main, true);
                 Round(g, new(left, center + 14, 48, 2), 1, Tone("#E9EBF0", "#414753"));
                 if (value is > 0) Round(g, new(left, center + 14, 48 * Math.Clamp(value.Value, 0, 100) / 100, 2), 1, color);
             }
             x += IslandProviderWidth(p);
+        }
+    }
+    private void CompactIsland(DrawingContext g)
+    {
+        var center = IslandHeight / 2;
+        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
+        double x = 12;
+        foreach (var p in monitor.Enabled)
+        {
+            var state = monitor.States[p.Id];
+            if (x > 12) g.DrawLine(new Pen(Brush(Tone("#E1E4EB", "#414753"))), new(x - 6, center - 8), new(x - 6, center + 8));
+            Logo(g, p, new(x, center - 8, 16, 16));
+            var left = x + 23;
+            var quotas = CompactQuotas(p);
+            foreach (var q in quotas)
+            {
+                var value = q.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
+                var color = state.Stale || Notice != null ? Amber : Main;
+                if (quotas.Length > 1) { Txt(g, Label(q.Label), left, center - 5, 9, Muted); left += 18; }
+                Txt(g, value is { } v ? $"{v:0}%" : "—", left, center - 9, 13, color, true);
+                if (state.Stale) g.DrawEllipse(Brush(Amber), null, new Point(left + 14, center + 11), 1.5, 1.5);
+                left += 44;
+            }
+            x += DisplayIslandWidth(p);
         }
     }
     private void Logo(DrawingContext g, ProviderDefinition provider, Rect target) => g.DrawImage(logos[provider.Id], target);
@@ -137,7 +174,7 @@ internal sealed class ProviderSurface : Control, IDisposable
         Txt(g, quota.Label, 24, y, 12, Muted);
         var value = quota.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
         var color = stale ? Amber : quota.Used >= 90 ? Tone("#C14E4E", "#F18484") : quota.Used >= 75 ? Amber : Accent(accent);
-        var label = Text(value is { } v ? $"{v:0.#}%" : "—", 20, value == null ? Muted : stale || quota.Used >= 75 ? color : Main, true);
+        var label = Text(value is { } v ? $"{v:0}%" : "—", 20, value == null ? Muted : stale || quota.Used >= 75 ? color : Main, true);
         g.DrawText(label, new(296 - label.Width, y - 6));
         Round(g, new(24, y + 19, 272, 4), 2, Tone("#E9EBF0", "#414753"));
         if (value is > 0) Round(g, new(24, y + 19, 272 * value.Value / 100, 4), 2, color);
@@ -153,7 +190,7 @@ internal sealed class ProviderSurface : Control, IDisposable
         for (var i = 0; i < Math.Min(2, quotas.Length); i++) Ring(g, quotas[i], x, 6 + i * 4, i == 0 ? Accent(p.Accent) : Tone("#99AAC4", "#9EAFCE"), state.Stale);
         Logo(g, p, new(x + 23, 19, 12, 12));
         Txt(g, p.Name, x + 39, 19, 10, Muted, true);
-        string Percent(Quota? q) => q?.Used is { } n ? $"{(monitor.Preferences.ShowUsed ? n : 100 - n):0.#}%" : "—";
+        string Percent(Quota? q) => q?.Used is { } n ? $"{(monitor.Preferences.ShowUsed ? n : 100 - n):0}%" : "—";
         void Center(string text, double y, double size, Color color, bool bold = false)
         {
             var ft = Text(text, size, color, bold); g.DrawText(ft, new(x + 48 - ft.Width / 2, y));
@@ -198,8 +235,8 @@ internal sealed class ProviderSurface : Control, IDisposable
             double left = 12;
             foreach (var p in monitor.Enabled)
             {
-                if (point.X >= left && point.X < left + IslandProviderWidth(p)) return p;
-                left += IslandProviderWidth(p);
+                if (point.X >= left && point.X < left + DisplayIslandWidth(p)) return p;
+                left += DisplayIslandWidth(p);
             }
             return null;
         }

@@ -1,16 +1,17 @@
 # AI Usage Widget
 
-A floating desktop widget for checking Codex and Grok usage on Windows and macOS, built with C#/.NET and Avalonia.
+A floating desktop widget for checking Codex, Grok, and Grok Bot usage on Windows and macOS, built with C#/.NET and Avalonia.
 
 Current release: **[v1.7.0](https://github.com/wernerong/ai-usage-widget/tree/v1.7.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Features
 
-- Select Codex, Grok, or both; choices persist across restarts.
+- Select any combination of Codex, Grok, and Grok Bot; choices persist across restarts.
 - Compact round badges, detailed cards, or a slim island bar, sized to the selected providers.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
-- Percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
+- Grok Bot weekly usage, reset time, and on-demand spending (Windows desktop login).
+- Whole-number percentage remaining or percentage used display, with reset countdowns and exact times in tooltips.
 - Independent provider refreshes every minute; stale readings remain visible when requests fail.
 - Dark mode for all layouts, with a saved preference and matching widget menus and tooltips. Native macOS menu bar menus follow the system appearance.
 - Drag to move, remembered position, always on top, and adjustable opacity.
@@ -25,6 +26,7 @@ Claude is not yet supported. The provider registry allows future integrations wi
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build. Self-contained packages include the runtime.
 - For Codex: Codex CLI installed and signed in with a ChatGPT account exposing account rate limits.
 - For Grok: Grok CLI / Build signed in with OAuth (`grok login`).
+- For Grok Bot: its Windows desktop app installed and signed in under the same Windows account.
 
 Only selected providers need logins. A missing login for one provider does not prevent another from updating. Selecting a provider enables monitoring; it does not purchase a subscription or sign you in.
 
@@ -32,15 +34,21 @@ The bundle permits macOS 13, with startup reported working on 13.5. This compati
 
 ## Choose your subscriptions
 
-Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select **Codex**, **Grok**, or both. Both start enabled for compatibility, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
+Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select **Codex**, **Grok**, and/or **Grok Bot**. Codex and Grok start enabled for compatibility; Grok Bot is opt-in, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
 
 Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Preferences are preserved across restarts and Windows upgrades from v1.4.0.
 
 Use **Dark mode** in the widget or tray/menu bar menu to switch between dark and light appearance. The choice applies immediately to every layout and persists across restarts.
 
+## Compact island
+
+Choose **Layout → Compact island** for logos and whole-number percentages in a shorter bar. Codex shows weekly usage and includes its 5-hour limit only when a percentage is available. Grok and Grok Bot show weekly usage only. All weekly-only entries use the same logo + percentage presentation; Codex shows 5h/Wk labels only when both limits are available. Hover a logo or percentage for the provider name, reset times, balances, and free resets. The percentage-used/remaining setting applies here too; stale values turn amber with a small dot.
+
+The three current providers use 326 logical pixels with both Codex limits, or 246 with only weekly limits. Width updates as limits become available. Switching layouts keeps the current position, subject to screen bounds. **Island bar** retains the more detailed layout.
+
 ## Island bar
 
-Choose **Layout → Island bar** for a rounded, 40-pixel-high strip near the top center of the current screen's usable area, below the macOS menu bar. It shows each selected provider and its quota percentages with small progress bars; hover a provider for reset times, credits, and full status.
+Choose **Layout → Island bar** for a rounded, 40-pixel-high strip. Switching layouts keeps the current position, constrained to the screen. It shows each selected provider and its quota percentages with small progress bars; hover a provider for reset times, credits, and full status.
 
 Drag anywhere on the bar to move it. Its position and layout persist across restarts. Dragging keeps the whole widget on a connected screen and can cross to another monitor, including monitors with different scaling or placed to the left or above. It snaps across shared edges rather than leaving part of the widget offscreen; unplugging a monitor brings it back onto an available screen. **Reset position** returns it to the top center. With both providers it is 336 pixels wide; selecting only Codex or Grok makes it narrower. Dimensions use logical pixels and follow display scaling. On Windows, its height adapts to the current monitor’s horizontal taskbar with even margins (40 logical pixels for a standard 48-pixel taskbar). Drag it into an unused part of the taskbar to center it vertically; the saved position can include the taskbar area. It is a floating overlay and does not reserve taskbar space or avoid taskbar buttons automatically. On macOS, movement stays within the usable desktop below the menu bar and outside the Dock. With **Always on top** enabled, the Windows island restores its position above an overlapping taskbar when switching apps, without taking keyboard focus. Auto-hidden taskbars do not hide the widget. Percentage display, opacity, always-on-top, and right-click settings work in this layout too.
 
@@ -155,3 +163,9 @@ Platform icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons); th
 References: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Grok billing implementation](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
 
 This project is not affiliated with or endorsed by OpenAI or xAI.
+
+## Grok Bot connection (Windows)
+
+Enable **Subscriptions → Grok Bot**. This is a separate allowance from Grok CLI / Build. The widget reads the active desktop account from `%APPDATA%\Grok Bot\sand-secrets.json` and uses Windows DPAPI and the app's encrypted local key to unlock its access token in memory. It does not copy credentials into widget settings, modify Grok Bot files, or rotate refresh tokens. Keep Grok Bot signed in; if its access token expires, open the app and refresh the widget. macOS Grok Bot authentication is not yet supported.
+
+The read-only `GetSandUsageStatus` and `GetCurrentPeriodUsage` requests use Cursor's authenticated dashboard service. These are internal app endpoints and may change. Weekly `usagePercent` means **used**; the remaining display subtracts it from 100. On-demand amounts are converted from cents and shown separately from the weekly allowance. Missing percentages are unavailable, never treated as zero. If spending fails, the weekly reading remains available with “On-demand unavailable.” Pooled enterprise allowances do not expose an individual percentage.
