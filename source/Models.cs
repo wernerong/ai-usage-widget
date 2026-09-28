@@ -21,6 +21,7 @@ internal sealed class Preferences
     public bool Island { get; set; }
     public bool CompactIsland { get; set; }
     public bool DarkMode { get; set; }
+    public bool AutomaticUpdates { get; set; } = true;
     public double Opacity { get; set; } = 0.97;
     public static string Folder => PlatformServices.SettingsFolder;
     public static string FilePath => Path.Combine(Folder, "settings.json");

@@ -15,6 +15,19 @@ $dist = Join-Path $repoDir 'dist'
 New-Item -ItemType Directory -Path $stage,$dist -Force | Out-Null
 dotnet publish (Join-Path $repoDir 'source\UsageWidget.csproj') -c Release -r win-x64 --self-contained true -o $stage
 if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
-& $Compiler "/DAppVersion=$version" "/DPayloadDir=$stage" "/DOutputDir=$dist" (Join-Path $repoDir 'installer\windows.iss')
+$tools = Join-Path $repoDir 'work\vpk'
+if (!(Test-Path (Join-Path $tools 'vpk.exe'))) {
+    dotnet tool install vpk --tool-path $tools --version 1.2.158
+    if ($LASTEXITCODE -ne 0) { throw 'Updater tool installation failed.' }
+}
+$updates = $stage + '-updates'
+& (Join-Path $tools 'vpk.exe') pack --packId AIUsageWidget.Desktop --packVersion $version --packDir $stage --mainExe AIUsageWidget.exe --packTitle 'AI Usage Widget' --channel win-x64 --runtime win-x64 --outputDir $updates --icon (Join-Path $repoDir 'source\Assets\widget.ico') --noInst
+if ($LASTEXITCODE -ne 0) { throw 'Updater packaging failed.' }
+$payload = Join-Path $stage 'installer-payload'
+Expand-Archive -LiteralPath (Get-ChildItem $updates -Filter '*Portable.zip').FullName -DestinationPath $payload
+# Keep the existing shortcuts, startup entries and Antigravity hook working.
+Move-Item -LiteralPath (Join-Path $payload 'AI Usage Widget.exe') -Destination (Join-Path $payload 'AIUsageWidget.exe')
+Copy-Item (Join-Path $updates '*.nupkg'),(Join-Path $updates 'releases.*.json') $dist
+& $Compiler "/DAppVersion=$version" "/DPayloadDir=$payload" "/DOutputDir=$dist" (Join-Path $repoDir 'installer\windows.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Windows installer compilation failed.' }
 Write-Output "Installer: $dist\AIUsageWidget-$version-windows-x64-setup.exe"

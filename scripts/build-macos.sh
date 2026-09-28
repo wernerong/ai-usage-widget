@@ -44,12 +44,28 @@ plutil -lint "$app/Contents/Info.plist"
 # Ad-hoc signing is for local builds, not Developer ID/notarized distribution.
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
+
+# Use the same update-ready bundle for the native installer and update feed.
+# Ad-hoc signing remains the default until Developer ID credentials are supplied.
+tools="$repo_dir/work/vpk"
+if [[ ! -x "$tools/vpk" ]]; then dotnet tool install vpk --tool-path "$tools" --version 1.2.158; fi
+updates="$stage_root/updates"
+sign_args=(--signAppIdentity "${MACOS_SIGN_IDENTITY:--}")
+if [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then sign_args+=(--notaryProfile "$MACOS_NOTARY_PROFILE"); fi
+"$tools/vpk" pack --packId AIUsageWidget.Desktop --packVersion "$version" --packDir "$app" \
+    --mainExe AIUsageWidget --packTitle 'AI Usage Widget' --channel "$rid" --runtime "$rid" \
+    --outputDir "$updates" --noInst "${sign_args[@]}"
+ditto -x -k "$updates/AIUsageWidget.Desktop-$rid-Portable.zip" "$stage_root/update-ready"
+app="$stage_root/update-ready/AI Usage Widget.app"
+test -x "$app/Contents/MacOS/UpdateMac"
+codesign --verify --deep --strict "$app"
+cp "$updates/"*.nupkg "$updates/"releases.*.json "$repo_dir/dist/"
 cp "$repo_dir/scripts/install-macos.sh" "$stage/Install.command"
 cp "$repo_dir/scripts/uninstall-macos.sh" "$stage/Uninstall.command"
 cp "$repo_dir/README.md" "$repo_dir/CHANGELOG.md" "$stage/"
 chmod +x "$stage/Install.command" "$stage/Uninstall.command"
 archive="$repo_dir/dist/AIUsageWidget-$version-$rid.zip"
-ditto -c -k --sequesterRsrc --keepParent "$stage" "$archive"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
 echo "Built: $archive"
 echo "Application: $app"
 

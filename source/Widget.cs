@@ -24,6 +24,7 @@ internal sealed class Widget : Window
     private bool closing, initialized, clamping;
     private PixelPoint? dragOffset;
     private WindowsTaskbarOverlay? taskbarOverlay;
+    private AutomaticUpdates? updates;
     private readonly PixelPoint? initialPosition;
     private DateTimeOffset nextRefresh = DateTimeOffset.MinValue;
     private string lastTip = "";
@@ -99,6 +100,18 @@ internal sealed class Widget : Window
             // Injected monitors are driven by the caller (including UI regression tests).
             if (monitor != null) return;
             if (args.Contains("--render-check")) { await RenderChecks(); return; }
+            if (persist && !args.Contains("--render"))
+            {
+                var backend = new GithubWidgetUpdates();
+                if (backend.Available) AntigravityProvider.MigrateInstalledCommand();
+                updates = new AutomaticUpdates(backend, () => Monitor.Preferences.AutomaticUpdates,
+                    () => !closing && dragOffset == null && !contextMenu.IsOpen && OwnedWindows.Count == 0,
+                    () => { backend.Apply(!IsVisible); Quit(); });
+                updates.Changed += BuildMenus;
+                BuildMenus();
+                _ = updates.Run();
+                if (args.Contains("--hidden")) Hide();
+            }
             timer.Start();
             await RefreshUsage();
             if (args.Contains("--render")) { SaveRender("widget-preview.png"); Quit(); }
@@ -153,7 +166,12 @@ internal sealed class Widget : Window
         choices.AddRange(Monitor.Enabled.Select(p => new MenuChoice($"Open {p.Name} usage", () => {
             try { PlatformServices.OpenUrl(p.UsageUrl); } catch (Exception ex) { _ = ShowError("Could not open the browser: " + ex.Message); }
         })));
-        choices.AddRange([new("Reset position", () => { ResetPosition(); Restore(); }), new("-"), new($"AI Usage Widget v{Program.AppVersion}", Enabled: false), new("Exit", Quit)]);
+        choices.AddRange([new("Reset position", () => { ResetPosition(); Restore(); }), new("-"),
+            new("Updates", Children: [
+                new("Automatic updates", () => { prefs.AutomaticUpdates = !prefs.AutomaticUpdates; SavePreferences(); BuildMenus(); }, prefs.AutomaticUpdates),
+                new("Check for updates", () => { if (updates != null) _ = updates.Check(manual: true); }, Enabled: updates?.Available == true),
+                new(updates?.Status ?? "Install the latest release to enable updates", Enabled: false)]),
+            new($"AI Usage Widget v{Program.AppVersion}", Enabled: false), new("Exit", Quit)]);
         return choices.ToArray();
     }
     internal void BuildMenus()
@@ -406,6 +424,7 @@ internal sealed class Widget : Window
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
                 Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Island ? Monitor.Preferences.CompactIsland ? "compact-island" : "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
+                Updates = updates?.Status,
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(path + ".tmp", path, true);
@@ -452,7 +471,7 @@ internal sealed class Widget : Window
     internal void PrepareExit()
     {
         if (closing) return;
-        SavePosition(); closing = true; taskbarOverlay?.Dispose(); timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
+        SavePosition(); closing = true; updates?.Dispose(); taskbarOverlay?.Dispose(); timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
     }
     internal void Quit() { PrepareExit(); Close(); (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(); }
     internal static string SafeError(Exception ex) => ex switch

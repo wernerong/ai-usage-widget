@@ -73,14 +73,20 @@ jobs:
           test -x "$executable"
           "$executable" --version
           "$executable" --self-test
+          "$executable" --verify-update-install
           installer -pkg "$package" -target CurrentUserHomeDirectory
           codesign --verify --deep --strict "$HOME/Applications/AI Usage Widget.app"
+      - name: Check automatic upgrade and restart
+        shell: pwsh
+        run: ./scripts/check-automatic-update.ps1 -Runtime '${{ matrix.rid }}'
       - uses: actions/upload-artifact@v4
         with:
           name: AIUsageWidget-${{ matrix.rid }}
           path: |
             dist/*.exe
             dist/*.pkg
+            dist/*.nupkg
+            dist/releases.*.json
           if-no-files-found: error
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -102,19 +108,21 @@ jobs:
           cd installers
           test "$(find . -maxdepth 1 -name '*.exe' | wc -l)" -eq 1
           test "$(find . -maxdepth 1 -name '*.pkg' | wc -l)" -eq 2
-          sha256sum *.exe *.pkg > SHA256SUMS.txt
+          test "$(find . -maxdepth 1 -name 'releases.*.json' | wc -l)" -eq 3
+          test "$(find . -maxdepth 1 -name '*-full.nupkg' | wc -l)" -eq 3
+          sha256sum *.exe *.pkg *.nupkg releases.*.json > SHA256SUMS.txt
           cat > /tmp/release-notes.md <<'NOTES'
           Download the installer for your computer:
           - Windows x64: `windows-x64-setup.exe`
           - Mac Apple Silicon: `osx-arm64.pkg`
           - Mac Intel: `osx-x64.pkg`
 
-          Adds Claude Code, Cursor CLI, Copilot, Gemini CLI, Antigravity CLI status-line quotas, Kimi Code, GLM, and MiniMax Token Plan connections. Includes secure key storage and compact provider paging. See the README for login requirements and validation limits. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
+          Install this version once to enable automatic updates. The widget checks stable GitHub Releases in the background, downloads the correct platform package, verifies it, and restarts briefly to apply it. Future releases require no manual reinstall. Preferences and provider logins are preserved. Updates can be paused in the widget menu. Quit the old widget before this one-time upgrade.
 
           These installers are unsigned; macOS packages are not notarized. Windows SmartScreen/macOS Gatekeeper may require additional confirmation. On Mac, sign in to Grok Bot, enable it in Subscriptions, and allow Grok Bot Safe Storage access if Keychain asks.
           NOTES
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "AI Usage Widget $GITHUB_REF_NAME" --notes-file /tmp/release-notes.md --draft
           fi
-          gh release upload "$GITHUB_REF_NAME" *.exe *.pkg SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" *.exe *.pkg *.nupkg releases.*.json SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

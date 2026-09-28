@@ -60,4 +60,27 @@ internal static class AntigravityProvider
         File.WriteAllText(SettingsPath + ".widget-tmp", settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         File.Move(SettingsPath + ".widget-tmp", SettingsPath, true);
     }
+    internal static bool MigrateCommand(JsonObject settings, string previous, string current)
+    {
+        if (settings["statusLine"] is not JsonObject line ||
+            line["command"]?.GetValue<string>() != $"\"{previous}\" --capture-antigravity") return false;
+        line["command"] = $"\"{current}\" --capture-antigravity";
+        return true;
+    }
+    internal static void MigrateInstalledCommand()
+    {
+        if (!OperatingSystem.IsWindows() || Environment.ProcessPath is not { } executable) return;
+        var folder = Path.GetDirectoryName(executable)!;
+        if (Path.GetFileName(folder) != "current" || !File.Exists(SettingsPath)) return;
+        try
+        {
+            var settings = JsonNode.Parse(File.ReadAllText(SettingsPath)) as JsonObject;
+            var previous = Path.Combine(Path.GetDirectoryName(folder)!, "AIUsageWidget.exe");
+            if (settings == null || !MigrateCommand(settings, previous, executable)) return;
+            File.Copy(SettingsPath, SettingsPath + ".widget-backup-" + DateTimeOffset.Now.ToUnixTimeMilliseconds());
+            File.WriteAllText(SettingsPath + ".widget-tmp", settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(SettingsPath + ".widget-tmp", SettingsPath, true);
+        }
+        catch { /* A custom/read-only CLI config must not prevent widget startup. */ }
+    }
 }

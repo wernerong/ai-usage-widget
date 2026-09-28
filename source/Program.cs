@@ -16,6 +16,8 @@ internal static class Program
     {
         try
         {
+            // Auxiliary CLI invocations must never trigger an application restart.
+            Velopack.VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
             if (args.Length == 1 && args[0] == "--capture-antigravity") return AntigravityProvider.Capture();
             if (args.Length == 1 && args[0] == "--enable-startup") { PlatformServices.SetStartup(true); return 0; }
             if (args.Length == 1 && args[0] == "--disable-startup") { PlatformServices.SetStartup(false); return 0; }
@@ -25,6 +27,8 @@ internal static class Program
                 return probe == null ? 0 : 2;
             }
             if (args.Contains("--version")) { Console.WriteLine(AppVersion); return 0; }
+            if (args.Contains("--verify-update-install")) return new GithubWidgetUpdates().Available ? 0 : 3;
+            if (args.Length == 2 && args[0] == "--update-smoke") return UpdateSmoke.Run(args[1]).GetAwaiter().GetResult();
             if (args.Contains("--self-test")) { Checks.Run(); MonitorChecks.Run().GetAwaiter().GetResult(); return 0; }
             if (args.Contains("--diagnose"))
             {

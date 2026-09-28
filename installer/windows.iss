@@ -51,6 +51,11 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 [Run]
 Filename: "{app}\AIUsageWidget.exe"; Description: "Launch AI Usage Widget"; Flags: nowait postinstall skipifsilent
 
+[UninstallDelete]
+; Updates replace these private application directories after installation.
+Type: filesandordirs; Name: "{app}\current"
+Type: filesandordirs; Name: "{app}\packages"
+
 [Code]
 procedure InitializeWizard;
 begin

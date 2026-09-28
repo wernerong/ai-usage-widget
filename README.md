@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.10.0](https://github.com/wernerong/ai-usage-widget/tree/v1.10.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.11.0](https://github.com/wernerong/ai-usage-widget/tree/v1.11.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,15 +10,27 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.10.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.10.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.10.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.11.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.11.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.11.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
-No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before upgrading. Existing preferences and provider logins are preserved.
+No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
 These installers are not publisher-signed/notarized yet. Windows SmartScreen or macOS Gatekeeper may require additional confirmation; this is not a warning-free distribution. On macOS, use the system's **Privacy & Security → Open Anyway** option if it is offered for the downloaded installer/app. Do not disable system security. Signing and notarization require the maintainer's signing certificates.
 
 To remove the Mac app, turn off **Start at login**, quit the widget, and move it from your home Applications folder to Trash. Preferences remain available for reinstallation.
+
+## Automatic updates
+
+Install v1.11.0 once. After that, the widget checks this repository's stable GitHub Releases 30–90 seconds after launch and about every six hours while running. It downloads the package for the installed architecture, verifies its size and checksum, then briefly restarts itself without opening an installer. It waits while a widget dialog or drag is active. Preferences, saved position, provider selections, and credential-store entries remain outside the replaced application files.
+
+The **Updates** menu includes **Automatic updates**, **Check for updates**, and a status line. Turning automatic updates off also prevents an in-flight background download from restarting the widget. A manual check explicitly checks and applies an available update. Offline, rate-limited, interrupted, or invalid downloads leave the working widget in place and retry on a later check. Pre-releases and downgrades are excluded. No GitHub account or token is needed. Source builds without updater packaging do not auto-update.
+
+GitHub hosts the files; installed widgets periodically retrieve them. Machines receive updates when online and running the updater-enabled widget, not immediately when a tag is pushed. Older versions cannot update themselves into this first release.
+
+Release maintainers continue pushing version tags. GitHub Actions builds and tests all three architectures, including a real old-to-new update/restart and corrupted-download rejection. Only after every platform succeeds does it publish the installers, `releases.<platform>.json` feeds, and `.nupkg` update packages together. Keep these assets attached to each release; users only download the `.exe` or `.pkg` for their first installation. Updates use Velopack 1.2.158; the existing native installer paths and Windows uninstall identity are retained.
+
+Packages currently use the existing unsigned Windows/ad-hoc-signed Mac distribution. Checksums detect damaged downloads; they are not independent publisher authentication. GitHub release access is the update trust boundary. Publisher signing and Mac notarization are still required for a warning-free public installation experience. The Mac build script accepts `MACOS_SIGN_IDENTITY` and `MACOS_NOTARY_PROFILE` when the corresponding certificate/profile is provisioned on the build runner; keep signing credentials in protected CI secrets.
 
 ## Features
 

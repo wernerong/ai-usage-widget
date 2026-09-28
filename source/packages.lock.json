@@ -33,6 +33,12 @@
           "Avalonia": "11.3.22"
         }
       },
+      "Velopack": {
+        "type": "Direct",
+        "requested": "[1.2.158, )",
+        "resolved": "1.2.158",
+        "contentHash": "wQN38beVrAf0WzFMnZtl7UmwxqwaJ7xVYypqITdOI4YUTYch2UvE+xAjg9msfaitVDtgfWeIcGsjRNQ65C03ZQ=="
+      },
       "Avalonia": {
         "type": "Transitive",
         "resolved": "11.3.22",

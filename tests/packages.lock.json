@@ -185,12 +185,18 @@
         "resolved": "0.21.3",
         "contentHash": "hDwB8WsQoyALQKqIbwzS68UKdlnafDm4T/DkO/JrA/YIneP/rKv96SxYPVXeh3FP4i/SXfShrYftKLtciJAIlw=="
       },
+      "Velopack": {
+        "type": "Transitive",
+        "resolved": "1.2.158",
+        "contentHash": "wQN38beVrAf0WzFMnZtl7UmwxqwaJ7xVYypqITdOI4YUTYch2UvE+xAjg9msfaitVDtgfWeIcGsjRNQ65C03ZQ=="
+      },
       "AIUsageWidget": {
         "type": "Project",
         "dependencies": {
           "Avalonia.Desktop": "[11.3.22, )",
           "Avalonia.Fonts.Inter": "[11.3.22, )",
-          "Avalonia.Themes.Fluent": "[11.3.22, )"
+          "Avalonia.Themes.Fluent": "[11.3.22, )",
+          "Velopack": "[1.2.158, )"
         }
       }
     }

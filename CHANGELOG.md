@@ -4,6 +4,13 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-09-28
+
+- Enable automatic stable-release updates from GitHub on Windows and both Mac architectures after one installer upgrade.
+- Verify downloads and restart quietly while preserving preferences and provider credentials.
+- Add update status, manual checks, and an automatic-update opt-out to the widget menu.
+- Test corrupt-download rejection and an actual packaged update/restart before publishing all platform feeds together.
+
 ## [1.10.0] - 2026-09-28
 
 ### Added
