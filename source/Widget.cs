@@ -34,7 +34,17 @@ internal sealed class Widget : Window
     internal static ProviderDefinition[] CreateProviders(GrokProvider grok) => [
         new("codex", "Codex", "https://chatgpt.com/codex/settings/usage", "live Codex account limits", Color.Parse("#3675C4"), ["5 hours", "Weekly"], true, true, CodexProvider.Read),
         new("grok", "Grok", "https://grok.com?_s=usage", "Grok CLI billing", Color.Parse("#8074AA"), ["Weekly"], false, true, grok.Read),
-        new("grok-bot", "Grok Bot", "https://cursor.com/dashboard", "Grok Bot desktop weekly usage", Color.Parse("#568FAD"), ["Weekly"], false, false, GrokBotProvider.Read)
+        new("grok-bot", "Grok Bot", "https://cursor.com/dashboard", "Grok Bot desktop weekly usage", Color.Parse("#568FAD"), ["Weekly"], false, false, GrokBotProvider.Read),
+        new("claude", "Claude", "https://claude.ai/settings/usage", "Claude Code subscription login", Color.Parse("#B46C50"), ["5 hours", "Weekly"], false, false, ClaudeProvider.Read),
+        new("cursor", "Cursor", "https://cursor.com/dashboard/usage", "Cursor CLI included billing-cycle allowance", Color.Parse("#6B7C91"), ["Monthly"], false, false, CursorProvider.Read),
+        new("copilot", "Copilot", "https://github.com/settings/copilot", "GitHub Copilot monthly allowance", Color.Parse("#7374C4"), ["Premium", "Chat"], false, false, CopilotProvider.Read),
+        new("gemini", "Gemini", "https://geminicli.com/docs/quota-and-pricing/", "Gemini CLI / Code Assist model quotas; not Gemini web chat", Color.Parse("#5084D5"), ["Models"], false, false, GeminiProvider.Read),
+        new("antigravity", "Antigravity", "https://antigravity.google/docs/cli/commands/usage/", "Latest Antigravity CLI status-line quota; run /usage to refresh", Color.Parse("#5F8CA4"), ["Models"], false, false, AntigravityProvider.Read),
+        new("kimi", "Kimi", "https://www.kimi.com/code/console", "Kimi Code subscription", Color.Parse("#5878D0"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("kimi", ct)),
+        new("glm", "GLM", "https://z.ai/manage-apikey/subscription", "Z.ai international Coding Plan", Color.Parse("#6581A6"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("glm", ct)),
+        new("glm-cn", "GLM CN", "https://bigmodel.cn", "Zhipu China Coding Plan", Color.Parse("#6581A6"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("glm-cn", ct)),
+        new("minimax", "MiniMax", "https://platform.minimax.io/subscribe/token-plan", "MiniMax international Token Plan", Color.Parse("#B26A89"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("minimax", ct)),
+        new("minimax-cn", "MiniMax CN", "https://platform.minimax.cn/subscribe/token-plan", "MiniMax China Token Plan", Color.Parse("#B26A89"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("minimax-cn", ct))
     ];
     public Widget(string[] args, UsageMonitor? monitor = null, bool createTray = true, bool persist = true)
     {
@@ -99,6 +109,7 @@ internal sealed class Widget : Window
             if (!Monitor.Busy && DateTimeOffset.Now >= nextRefresh) await RefreshUsage();
         };
         Surface.PointerPressed += OnSurfacePressed;
+        Surface.PointerWheelChanged += (_, e) => { if (Surface.PageCount > 1) { ChangePage(e.Delta.Y < 0 ? 1 : -1); e.Handled = true; } };
         Surface.PointerMoved += (_, e) =>
         {
             if (dragOffset is { } offset)
@@ -125,6 +136,8 @@ internal sealed class Widget : Window
         var choices = new List<MenuChoice> {
             new("Show / hide widget", ToggleVisible), new("Refresh now", () => _ = RefreshUsage()),
             new("Subscriptions", Children: Monitor.Providers.Select(p => new MenuChoice(p.Name, () => SetProvider(p, !prefs.IsEnabled(p)), prefs.IsEnabled(p), !prefs.IsEnabled(p) || Monitor.Enabled.Length > 1)).ToArray()),
+            new("Connections", Children: Monitor.Providers.Where(p => ConnectionDialog.Supports(p.Id)).Select(p => new MenuChoice(p.Name, () => _ = ConnectProvider(p))).ToArray()),
+            new($"Provider page {Surface.Page + 1}/{Surface.PageCount}", Children: [new("Previous providers", () => ChangePage(-1), Enabled: Surface.PageCount > 1), new("Next providers", () => ChangePage(1), Enabled: Surface.PageCount > 1)]),
             new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", () => SetIsland(), prefs.Island && !prefs.CompactIsland, Radio: true), new("Compact island", () => SetIsland(true), prefs.Island && prefs.CompactIsland, Radio: true)]),
             new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
@@ -212,6 +225,18 @@ internal sealed class Widget : Window
         Restore();
         await dialog.ShowDialog(this);
     }
+    internal void ChangePage(int direction)
+    {
+        Surface.ChangePage(direction); ApplyLayout(true); BuildMenus(); UpdateDisplay();
+    }
+    private async Task ConnectProvider(ProviderDefinition provider)
+    {
+        var dialog = new ConnectionDialog(provider);
+        if (await dialog.ShowDialog<bool>(this))
+        {
+            Monitor.Reconnect(provider); SetProvider(provider, true); await RefreshUsage();
+        }
+    }
     internal void SetProvider(ProviderDefinition provider, bool enabled)
     {
         if (!Monitor.SetEnabled(provider, enabled)) return;
@@ -255,6 +280,7 @@ internal sealed class Widget : Window
     {
         if (!e.GetCurrentPoint(Surface).Properties.IsLeftButtonPressed) return;
         var p = e.GetPosition(Surface);
+        if (Surface.IsPager(p)) { ChangePage(1); e.Handled = true; return; }
         if (Monitor.Preferences.Island) { StartDrag(e); }
         else if (Monitor.Preferences.Compact)
         {
@@ -279,6 +305,7 @@ internal sealed class Widget : Window
     }
     private void UpdateTooltip(Point point)
     {
+        if (Surface.IsPager(point)) { ToolTip.SetTip(Surface, $"Next providers · page {Surface.Page + 1}/{Surface.PageCount} · scroll to switch pages"); lastTip = ""; return; }
         var p = Surface.ProviderAt(point);
         var text = p != null ? Details(p) : Surface.Notice ?? "Drag to move · right-click for settings";
         if (!Monitor.Preferences.Island && !Monitor.Preferences.Compact && point.Y < 44)
@@ -291,13 +318,14 @@ internal sealed class Widget : Window
     {
         var state = Monitor.States[provider.Id];
         var lines = new List<string> { provider.Name + " · " + provider.Description };
+        if (Surface.PageCount > 1) lines.Add($"Page {Surface.Page + 1}/{Surface.PageCount} · scroll to see more providers");
         if (state.Error != null) lines.Add(state.Error);
         if (state.Reading is { } r)
         {
             lines.Add($"Last successful refresh: {r.Fetched.LocalDateTime:ddd d MMM, HH:mm:ss}");
             foreach (var q in r.Quotas)
             {
-                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0}% used · {100-n:0}% left" : "unavailable")}");
+                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0}% used · {100-n:0}% left" : q.Note == "Unlimited" ? "unlimited" : "unavailable")}");
                 if (q.Reset != null) lines.Add($"Resets {q.Reset.Value.LocalDateTime:ddd d MMM, HH:mm:ss}");
                 if (q.Note != null) lines.Add(q.Note);
             }

@@ -109,7 +109,7 @@ jobs:
           - Mac Apple Silicon: `osx-arm64.pkg`
           - Mac Intel: `osx-x64.pkg`
 
-          Includes Grok Bot usage on Windows and macOS, compact island layouts, and a bundled runtime. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
+          Adds Claude Code, Cursor CLI, Copilot, Gemini CLI, Antigravity CLI status-line quotas, Kimi Code, GLM, and MiniMax Token Plan connections. Includes secure key storage and compact provider paging. See the README for login requirements and validation limits. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
 
           These installers are unsigned; macOS packages are not notarized. Windows SmartScreen/macOS Gatekeeper may require additional confirmation. On Mac, sign in to Grok Bot, enable it in Subscriptions, and allow Grok Bot Safe Storage access if Keychain asks.
           NOTES

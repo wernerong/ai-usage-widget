@@ -16,6 +16,7 @@ internal static class Program
     {
         try
         {
+            if (args.Length == 1 && args[0] == "--capture-antigravity") return AntigravityProvider.Capture();
             if (args.Length == 1 && args[0] == "--enable-startup") { PlatformServices.SetStartup(true); return 0; }
             if (args.Length == 1 && args[0] == "--disable-startup") { PlatformServices.SetStartup(false); return 0; }
             if (args.Length == 2 && args[0] == "--instance-probe")

@@ -4,6 +4,21 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-28
+
+### Added
+
+- Add opt-in Claude Code, Cursor CLI, GitHub Copilot, and Gemini CLI / Code Assist quota readers. Reuse supported local logins; API billing and consumer web-chat quotas remain separate.
+- Add Kimi Code, Z.ai / Zhipu GLM Coding Plan, and international / China MiniMax Token Plan connections. Store entered keys in Windows Credential Manager or macOS Keychain.
+- Connect Antigravity's documented CLI status-line quota feed with a settings backup; preserve existing custom status lines and store only quota data.
+- Page all layouts in groups of three providers, with mouse-wheel navigation, a next-page control, and menu navigation. Keep existing provider selections unchanged.
+- Use whole percentages, explicit unlimited states, authoritative provider resets, and HTTP rate-limit backoff. Preserve missing values as unavailable.
+
+### Validation limits
+
+- New providers are tested against synthetic contract fixtures and native credential stores; paid-account end-to-end checks require accounts not available to the maintainer. Internal vendor endpoints can change.
+- Antigravity shows the latest CLI snapshot and marks old data stale. MiniMax requires explicit remaining-percent fields; ambiguous older count-only responses are rejected.
+
 ## [1.9.0] - 2026-09-28
 
 ### Added

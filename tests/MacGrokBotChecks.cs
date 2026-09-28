@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using UsageWidget;
 
 internal static class MacGrokBotChecks
@@ -31,6 +32,18 @@ internal static class MacGrokBotChecks
         {
             await Security("create-keychain", "-p", "synthetic-keychain-password", path);
             await Security("unlock-keychain", "-p", "synthetic-keychain-password", path);
+            Check(SecKeychainOpen(path, out var keychain) == 0);
+            try
+            {
+                CredentialVault.Save("synthetic-provider", "synthetic-first", keychain);
+                Check(CredentialVault.Read("synthetic-provider", keychain) == "synthetic-first");
+                CredentialVault.Save("synthetic-provider", "synthetic-second", keychain);
+                Check(CredentialVault.Read("synthetic-provider", keychain) == "synthetic-second");
+                CredentialVault.Save("synthetic-provider", null, keychain);
+                Check(CredentialVault.Read("synthetic-provider", keychain) == null);
+                Console.WriteLine("PASS: 4 native Mac connection vault checks");
+            }
+            finally { CFRelease(keychain); }
             await Security("add-generic-password", "-s", "Widget Test Safe Storage", "-a", "Widget Test", "-w", password, "-A", path);
             var actual = await MacGrokBotStorage.ReadPassword("Widget Test Safe Storage", "Widget Test", default, path);
             Check(actual == password);
@@ -71,4 +84,6 @@ internal static class MacGrokBotChecks
         await Task.WhenAll(output, error);
         if (process.ExitCode != 0) throw new Exception("Synthetic Keychain fixture command failed: " + arguments[0]);
     }
+    [DllImport("/System/Library/Frameworks/Security.framework/Security")] private static extern int SecKeychainOpen([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out IntPtr keychain);
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")] private static extern void CFRelease(IntPtr value);
 }

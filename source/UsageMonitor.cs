@@ -42,6 +42,13 @@ internal sealed class UsageMonitor : IDisposable
         refresh = RefreshLoop();
         return refresh;
     }
+    internal void Reconnect(ProviderDefinition provider)
+    {
+        if (requests.TryGetValue(provider.Id, out var request)) request.Cancel();
+        States[provider.Id] = new(provider.Name);
+        requested = true;
+        Changed?.Invoke();
+    }
     private async Task RefreshLoop()
     {
         do

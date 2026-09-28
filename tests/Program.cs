@@ -14,6 +14,7 @@ internal static class UiChecks
     {
         GrokBotChecks.Run().GetAwaiter().GetResult();
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
+        AdditionalProviderChecks.Run().GetAwaiter().GetResult();
         AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }
@@ -82,14 +83,14 @@ internal static class UiChecks
                     monitor.States[only.Id].Error = null;
                 }
             }
-            foreach (var p in providers) widget.SetProvider(p, true);
+            foreach (var p in providers) { widget.SetProvider(p, true); monitor.States[p.Id].Reading = Widget.Fixture(p); }
             Click("Layout", "Round badges (compact)");
-            Check(widget.Width == 100 * providers.Length - 4 && widget.Surface.ProviderAt(new(148,48))?.Id == "grok", "All-provider badge order and width");
+            Check(widget.Width == 322 && widget.Surface.ProviderAt(new(148,48))?.Id == "grok", "Many providers stay within three badges plus a pager");
             widget.Position = new PixelPoint(40, 30);
             var beforeIsland = widget.Position;
             Click("Layout", "Island bar");
             Check(widget.Position == beforeIsland, "Switching to island preserves the current position");
-            Check(widget.Width == 24 + providers.Sum(ProviderSurface.IslandProviderWidth) && widget.Height == 40, "Island fits all providers in a slim bar");
+            Check(widget.Width == 50 + widget.Surface.VisibleProviders.Sum(ProviderSurface.IslandProviderWidth) && widget.Height == 40, "Island fits one provider page in a slim bar");
             Check(Find("Layout", "Island bar").IsChecked && !Find("Layout", "Round badges (compact)").IsChecked && !Find("Layout", "Detailed cards").IsChecked, "Island layout selection is exclusive");
             Check(widget.Surface.ProviderAt(new(30, 25)) == providers[0] && widget.Surface.ProviderAt(new(250, 25)) == providers[1], "Island tooltips target the correct providers");
             Check(ScreenPlacement.TaskbarHeight(96, 2) == 40, "Taskbar fitting accounts for 200 percent scaling");
@@ -154,8 +155,20 @@ internal static class UiChecks
             widget.SaveRender("island-preview.png");
             Click("Layout", "Detailed cards");
             Check(!monitor.Preferences.Island, "Switching away clears island selection");
-            Check(widget.Height == 63 + providers.Sum(p => p.CardHeight + 8), "All cards restore full height");
+            Check(widget.Height == 63 + widget.Surface.VisibleProviders.Sum(p => p.CardHeight + 8), "All cards restore full height");
             Check(ReferenceEquals(originalContext, widget.Surface.ContextMenu) && ReferenceEquals(originalNative, widget.NativeMenu), "Menu objects survive all settings callbacks");
+            var seen = new HashSet<string>();
+            var pages = widget.Surface.PageCount;
+            Check(pages == 5, "Thirteen providers have five compact pages");
+            for (var page = 0; page < pages; page++)
+            {
+                foreach (var provider in widget.Surface.VisibleProviders) seen.Add(provider.Id);
+                Check(widget.Surface.VisibleProviders.Length <= 3 && widget.Height <= 567, "Cards stay within laptop height");
+                Check(Pixels().Any(b => b != 0), "Every page renders with all provider logos");
+                widget.SaveRender($"providers-page-{page + 1}.png");
+                widget.ChangePage(1);
+            }
+            Check(seen.SetEquals(providers.Select(p => p.Id)) && widget.Surface.Page == 0, "Paging reaches every provider and wraps");
             Check(ReferenceEquals(originalNativeItem, widget.NativeMenu.Items[0]), "Native items are not replaced from settings callbacks");
             widget.RefreshNativeMenu();
             Check(widget.NativeMenu.Items.OfType<NativeMenuItem>().Any(i => i.Header == "Percentage display"), "Native items refresh on the next menu update");
@@ -206,6 +219,7 @@ internal static class UiChecks
             }
             foreach (var p in providers) { widget.SetProvider(p, true); monitor.States[p.Id].Reading = Widget.Fixture(p); }
             widget.Position = new PixelPoint(40, 30);
+            foreach (var extra in providers.Skip(3)) widget.SetProvider(extra, false);
             Click("Layout", "Compact island");
             Check(widget.Position == new PixelPoint(40, 30), "Compact island keeps its position");
             Check(widget.Width == 326, "Compact island fits three providers with both Codex quotas");

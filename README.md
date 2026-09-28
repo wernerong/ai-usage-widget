@@ -1,8 +1,8 @@
 # AI Usage Widget
 
-A floating desktop widget for checking Codex, Grok, and Grok Bot usage on Windows and macOS, built with C#/.NET and Avalonia.
+A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.9.0](https://github.com/wernerong/ai-usage-widget/tree/v1.9.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.10.0](https://github.com/wernerong/ai-usage-widget/tree/v1.10.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.9.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.9.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.9.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.10.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.10.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.10.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before upgrading. Existing preferences and provider logins are preserved.
 
@@ -22,8 +22,8 @@ To remove the Mac app, turn off **Start at login**, quit the widget, and move it
 
 ## Features
 
-- Select any combination of Codex, Grok, and Grok Bot; choices persist across restarts.
-- Compact round badges, detailed cards, or a slim island bar, sized to the selected providers.
+- Select providers independently; choices persist across restarts. New providers are opt-in.
+- Compact round badges, detailed cards, or a slim island bar. Three providers per page keep every layout small; scroll or use the next-page button to see more.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
 - Grok Bot weekly usage, reset time, and on-demand spending (Windows and macOS desktop login).
@@ -50,7 +50,7 @@ The bundle permits macOS 13, with startup reported working on 13.5. This compati
 
 ## Choose your subscriptions
 
-Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select **Codex**, **Grok**, and/or **Grok Bot**. Codex and Grok start enabled for compatibility; Grok Bot is opt-in, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
+Right-click the widget or use its tray/menu bar menu, then open **Subscriptions**. Select the providers you use. Open **Connections** for login instructions or secure subscription-key entry. Codex and Grok start enabled for compatibility; Grok Bot is opt-in, and at least one stays selected. Disabled providers stop refreshing and disappear from summaries, tooltips, usage links, diagnostics, and health snapshots.
 
 Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Preferences are preserved across restarts and Windows upgrades from v1.4.0.
 
@@ -190,5 +190,47 @@ Enable **Subscriptions → Grok Bot**. This is a separate allowance from Grok CL
 - **macOS:** the widget reads `~/Library/Application Support/Grok Bot/sand-secrets.json` and uses the **Grok Bot Safe Storage** password from your login Keychain to unlock Electron's encrypted login. macOS may ask you to allow Keychain access. If access is denied or the Keychain is locked, the widget shows instructions instead of an invented usage value.
 
 Credentials are decrypted only in memory. The widget does not copy them into settings, modify Grok Bot files, or rotate refresh tokens. Keep Grok Bot signed in; if its access token expires, open the app and refresh the widget. The same weekly percentage, reset time, and on-demand spending are available in every layout on both platforms.
+
+## Additional providers
+
+Enable only the subscriptions you use. **Connections** shows setup instructions, accepts subscription keys where needed, and connects the Antigravity status line. Three providers appear per page in every layout. Scroll over the widget, click **›** (the page label on cards), or use **Provider page → Next providers** to move between pages. All enabled providers continue refreshing in the background.
+
+| Provider | Source and allowance | Setup |
+|---|---|---|
+| Claude | Claude Code OAuth usage: 5-hour and weekly windows; model-specific limits in the tooltip | Install Claude Code and use `/login` with a Claude subscription. Windows reads its credentials file; Mac reads its Keychain entry, with the credentials-file fallback. |
+| Cursor | Cursor CLI dashboard: current included billing-cycle allowance and on-demand spend | Run `agent login`. Mac uses the CLI Keychain login; Windows uses `%APPDATA%\Cursor\auth.json`. The selected CLI team is respected. An editor-only login is not imported. |
+| Copilot | GitHub Copilot entitlement snapshots: premium and chat; unlimited shown as **∞** | Reuses a single local Copilot `hosts.json` / `apps.json` login or `gh auth login`. Connections can store a Copilot-authorized GitHub token. An arbitrary API token may lack access. |
+| Gemini | Gemini CLI / Code Assist per-model quotas | Run Gemini CLI and choose **Sign in with Google**, completing project setup if required. Reads `~/.gemini/oauth_creds.json` or the Mac `gemini-cli-oauth` Keychain item. Encrypted Windows Gemini storage is not currently imported. |
+| Antigravity | Latest quota snapshot from the documented Antigravity CLI status line | Choose **Connections → Antigravity → Connect status line**, restart `agy`, then run `/usage`. Does not scrape the Antigravity desktop app. |
+| Kimi | Kimi Code 5-hour and weekly subscription quotas | Enter a **Kimi Code subscription key** in Connections; Moonshot pay-as-you-go keys are separate. |
+| GLM / GLM CN | Z.ai international / Zhipu mainland-China Coding Plan | Enter the coding-plan key in the matching regional connection. Only explicitly reported windows are shown. |
+| MiniMax / MiniMax CN | International / mainland-China Token Plan | Enter the subscription key in the matching region. Uses explicit remaining-percent fields; older count-only responses are unavailable because their meanings vary by plan generation. |
+
+Gemini and Antigravity summarize the **most used reported model quota**, not a sum or average. Hover to see the individual model/bucket values. Reset times are supplied by the provider. Missing quota data is never treated as 0% used or 100% remaining.
+
+Subscription readers do not make model-generation requests. Existing application OAuth refresh tokens remain owned by those applications: when a login expires, open the corresponding CLI/app to renew it and refresh the widget. The widget does not refresh or rewrite their login stores. Gemini web chat, Google AI Studio/Vertex API billing, Claude API billing, Cursor editor-only sign-in, and GitHub Enterprise Server are outside these readers' current scope.
+
+**Validation:** the added providers have deterministic parser, HTTP-error, rate-limit, UI, and OS credential-store checks. They have not been tested end-to-end with paid Claude, Cursor, Copilot, Google, Kimi, GLM, or MiniMax accounts. Several usage endpoints are internal vendor APIs and can change. Connection failures remain visible with setup instructions; a source-code test is not proof of live account compatibility.
+
+Qwen Code uses the allowance of its configured backend rather than one universal Qwen subscription. Monitor Kimi/GLM/MiniMax here when configured as its backend. Alibaba Model Studio quotas and other providers without a verified usage contract are not presented as supported integrations. See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+### Antigravity custom status lines
+
+Connecting backs up `~/.gemini/antigravity-cli/settings.json` and adds a `statusLine` command pointing to the installed widget with `--capture-antigravity`. It leaves other settings intact and refuses to overwrite a different custom status-line command. For an existing script, pass the same original JSON stdin to the widget capture command while retaining your original script's displayed output; discard the capture command's stdout. No full status payload is retained: only normalized quotas and the capture timestamp are saved in the widget data directory.
+
+The snapshot is marked stale after three minutes. Running `/usage` in Antigravity refreshes its quota feed. Removing the widget does not erase your Antigravity settings; remove the capture `statusLine` entry or restore its timestamped backup when disconnecting/uninstalling.
+
+### Integration references
+
+- [Claude Code authentication storage](https://code.claude.com/docs/en/authentication) and [usage endpoint report](https://github.com/anthropics/claude-code/issues/91406).
+- [Cursor CLI authentication](https://cursor.com/docs/cli/reference/authentication); dashboard contract checked against the official CLI release `2026.09.26-dd393fe`.
+- [GitHub's Copilot entitlement types](https://github.com/microsoft/vscode/blob/main/src/vs/base/common/defaultAccount.ts).
+- [Gemini quota types](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/types.ts) and [authentication](https://geminicli.com/docs/get-started/authentication/).
+- [Antigravity status-line contract](https://antigravity.google/docs/cli/statusline/).
+- [Kimi's usage reader](https://github.com/MoonshotAI/kimi-cli/blob/main/src/kimi_cli/ui/shell/usage.py).
+- [Z.ai's official usage plugin](https://github.com/zai-org/zai-coding-plugins/tree/main/plugins/glm-plan-usage).
+- [MiniMax Token Plan endpoint](https://platform.minimax.io/subscribe/token-plan) and [quota interpretation](https://github.com/MiniMax-AI/cli/blob/main/src/utils/quota.ts).
+
+New provider logos come from [Lobe Icons](https://github.com/lobehub/lobe-icons), under the existing MIT license in `source/Assets/LICENSE-lobe-icons.txt`. Provider trademarks remain their owners' property.
 
 The read-only `GetSandUsageStatus` and `GetCurrentPeriodUsage` requests use Cursor's authenticated dashboard service. These are internal app endpoints and may change. Weekly `usagePercent` means **used**; the remaining display subtracts it from 100. On-demand amounts are converted from cents and shown separately from the weekly allowance. Missing percentages are unavailable, never treated as zero. If spending fails, the weekly reading remains available with “On-demand unavailable.” Pooled enterprise allowances do not expose an individual percentage.
