@@ -14,13 +14,9 @@ app="$stage/AI Usage Widget.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 dotnet publish "$repo_dir/source/UsageWidget.csproj" -c Release -r "$rid" --self-contained true -o "$app/Contents/MacOS"
 chmod +x "$app/Contents/MacOS/AIUsageWidget"
-iconset="$stage_root/widget.iconset"
-mkdir -p "$iconset"
-for size in 16 32 128 256 512; do
-    sips -z "$size" "$size" "$repo_dir/source/Assets/widget.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
-    double_size=$((size * 2))
-    sips -z "$double_size" "$double_size" "$repo_dir/source/Assets/widget.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
-done
+iconset="$repo_dir/source/Assets/AppIcon.iconset"
+# Every representation is rendered from vector artwork at its native size.
+# Never enlarge a small PNG to fill the Retina / Finder representations.
 iconutil --convert icns "$iconset" --output "$app/Contents/Resources/widget.icns"
 test -s "$app/Contents/Resources/widget.icns"
 cat > "$app/Contents/Info.plist" <<PLIST

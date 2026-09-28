@@ -4,6 +4,13 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-09-28
+
+- Render provider logos from vector paths at the display's native scale, with pixel-aligned placement in every layout and both themes. Improve filtering for the existing Grok Bot raster artwork.
+- Replace the 64px application icon with a vector master, a complete macOS Retina iconset through 1024px, and nine Windows ICO sizes from 16px to 256px.
+- Give tray and menu-bar icons dedicated, optically adjusted small-size artwork instead of rescaling the application image.
+- Add reproducible icon generation, multi-resolution asset validation, and light/dark visual proofs. Retain automatic update integrity and restart checks on Windows, Intel Mac, and Apple Silicon Mac.
+
 ## [1.11.0] - 2026-09-28
 
 - Enable automatic stable-release updates from GitHub on Windows and both Mac architectures after one installer upgrade.

@@ -48,6 +48,13 @@ jobs:
           Get-Content source/bin/Release/net10.0/checks.txt
       - name: Check UI interactions and rendering
         run: dotnet run --project tests/UsageWidget.UiChecks.csproj -c Release --no-restore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Icon-proofs-${{ matrix.rid }}
+          path: |
+            tests/bin/Release/net10.0/icon-proof-*.png
+            tests/bin/Release/net10.0/compact-island-*.png
+          if-no-files-found: error
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,6 +102,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: AIUsageWidget-*
@@ -111,7 +119,11 @@ jobs:
           test "$(find . -maxdepth 1 -name 'releases.*.json' | wc -l)" -eq 3
           test "$(find . -maxdepth 1 -name '*-full.nupkg' | wc -l)" -eq 3
           sha256sum *.exe *.pkg *.nupkg releases.*.json > SHA256SUMS.txt
-          cat > /tmp/release-notes.md <<'NOTES'
+          awk -v version="${GITHUB_REF_NAME#v}" '
+            /^## \[/ { if (found) exit; found = index($0, "[" version "]") > 0; next }
+            found { print }
+          ' ../CHANGELOG.md > /tmp/release-notes.md
+          cat >> /tmp/release-notes.md <<'NOTES'
           Download the installer for your computer:
           - Windows x64: `windows-x64-setup.exe`
           - Mac Apple Silicon: `osx-arm64.pkg`

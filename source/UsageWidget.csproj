@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>AIUsageWidget</AssemblyName>
-    <Version>1.11.0</Version>
+    <Version>1.11.1</Version>
     <UseAppHost>true</UseAppHost>
     <ApplicationIcon>Assets/widget.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
@@ -15,7 +15,9 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
-    <AvaloniaResource Include="Assets/*.png" />
+    <AvaloniaResource Include="Assets/widget.png;Assets/tray.png;Assets/grok-bot.png" />
+    <AvaloniaResource Include="Assets/*.svg" />
+    <AvaloniaResource Include="Assets/*.ico" />
     <InternalsVisibleTo Include="UsageWidget.UiChecks" />
     <PackageReference Include="Velopack" Version="1.2.158" />
   </ItemGroup>

@@ -11,7 +11,8 @@ namespace UsageWidget;
 internal sealed class ProviderSurface : Control, IDisposable
 {
     private readonly UsageMonitor monitor;
-    private readonly Dictionary<string, Bitmap> logos = new();
+    private readonly Dictionary<string, VectorIcon> logos = new();
+    private Bitmap? grokBotLogo;
     private int page;
     internal int PageCount => Math.Max(1, (monitor.Enabled.Length + 2) / 3);
     internal int Page => Math.Clamp(page, 0, PageCount - 1);
@@ -62,11 +63,14 @@ internal sealed class ProviderSurface : Control, IDisposable
     }
     internal void ReloadLogos()
     {
-        foreach (var logo in logos.Values) logo.Dispose();
+        grokBotLogo?.Dispose();
         logos.Clear();
         foreach (var p in monitor.Providers)
         {
             var icon = p.Id switch { "copilot" => "githubcopilot", "glm" or "glm-cn" => "zai", "minimax-cn" => "minimax", _ => p.Id };
+            if (icon != "grok-bot") { logos[p.Id] = new VectorIcon(icon); continue; }
+            // Grok Bot currently supplies raster artwork only. Keep its alpha
+            // mask and use high-quality minification instead of the default.
             using var stream = AssetLoader.Open(new Uri($"avares://AIUsageWidget/Assets/{icon}.png"));
             using var original = new Bitmap(stream);
             var tinted = new WriteableBitmap(original.PixelSize, original.Dpi, PixelFormat.Bgra8888, AlphaFormat.Premul);
@@ -83,8 +87,9 @@ internal sealed class ProviderSurface : Control, IDisposable
                         Marshal.WriteByte(pixels.Address, offset + 2, (byte)(Main.R * alpha / 255));
                     }
             }
-            logos[p.Id] = tinted;
+            grokBotLogo = tinted;
         }
+        RenderOptions.SetBitmapInterpolationMode(this, BitmapInterpolationMode.HighQuality);
     }
     private static SolidColorBrush Brush(Color color) => new(color);
     private static void Round(DrawingContext g, Rect r, double radius, Color color, Color? border = null) =>
@@ -189,7 +194,12 @@ internal sealed class ProviderSurface : Control, IDisposable
             x += DisplayIslandWidth(p);
         }
     }
-    private void Logo(DrawingContext g, ProviderDefinition provider, Rect target) => g.DrawImage(logos[provider.Id], target);
+    private void Logo(DrawingContext g, ProviderDefinition provider, Rect target)
+    {
+        target = VectorIcon.Align(target, TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
+        if (logos.TryGetValue(provider.Id, out var logo)) logo.Draw(g, target, Brush(Main));
+        else if (grokBotLogo != null) g.DrawImage(grokBotLogo, target);
+    }
     private void Row(DrawingContext g, Quota quota, double y, Color accent, bool stale)
     {
         Txt(g, quota.Label, 24, y, 12, Muted);
@@ -279,5 +289,5 @@ internal sealed class ProviderSurface : Control, IDisposable
         }
         return null;
     }
-    public void Dispose() { foreach (var image in logos.Values) image.Dispose(); }
+    public void Dispose() => grokBotLogo?.Dispose();
 }

@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.11.0](https://github.com/wernerong/ai-usage-widget/tree/v1.11.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.11.1](https://github.com/wernerong/ai-usage-widget/tree/v1.11.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.11.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.11.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.11.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.11.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.11.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.11.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -22,7 +22,7 @@ To remove the Mac app, turn off **Start at login**, quit the widget, and move it
 
 ## Automatic updates
 
-Install v1.11.0 once. After that, the widget checks this repository's stable GitHub Releases 30–90 seconds after launch and about every six hours while running. It downloads the package for the installed architecture, verifies its size and checksum, then briefly restarts itself without opening an installer. It waits while a widget dialog or drag is active. Preferences, saved position, provider selections, and credential-store entries remain outside the replaced application files.
+Install v1.11.0 or later once. After that, the widget checks this repository's stable GitHub Releases 30–90 seconds after launch and about every six hours while running. It downloads the package for the installed architecture, verifies its size and checksum, then briefly restarts itself without opening an installer. It waits while a widget dialog or drag is active. Preferences, saved position, provider selections, and credential-store entries remain outside the replaced application files.
 
 The **Updates** menu includes **Automatic updates**, **Check for updates**, and a status line. Turning automatic updates off also prevents an in-flight background download from restarting the widget. A manual check explicitly checks and applies an available update. Offline, rate-limited, interrupted, or invalid downloads leave the working widget in place and retry on a later check. Pre-releases and downgrades are excluded. No GitHub account or token is needed. Source builds without updater packaging do not auto-update.
 
@@ -187,6 +187,8 @@ Definitions in `source/Widget.cs` supply a stable settings ID, name, usage URL, 
 `<Version>` in `source/UsageWidget.csproj` is the source of truth for the application, assembly, and generated Mac bundle version. Use semantic versioning: major for breaking changes, minor for features, patch for fixes. Update this README and `CHANGELOG.md` with each version. Released versions receive an annotated Git tag named `vMAJOR.MINOR.PATCH`; development versions are not automatically tagged or published.
 
 ## Credits
+
+Provider logos render from vector paths at native display resolution. Application and tray icons have dedicated small-size artwork, multi-resolution Windows ICOs, and a complete macOS Retina iconset. See [icon sources and regeneration](source/Assets/README.md).
 
 Codex and Grok platform icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons); their license is included in [source/Assets/LICENSE-lobe-icons.txt](source/Assets/LICENSE-lobe-icons.txt). Platform names and marks belong to their owners. The application uses [Avalonia](https://avaloniaui.net/) for Windows and macOS rendering.
 

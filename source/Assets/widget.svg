@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>AI Usage Widget</title>
+  <path fill="#DCE2ED" d="M32 1a31 31 0 1 1 0 62 31 31 0 0 1 0-62Z"/>
+  <path fill="#F7F9FC" d="M32 2a30 30 0 1 1 0 60 30 30 0 0 1 0-60Z"/>
+  <path fill="#3675C4" d="M21.5 20a5.5 5.5 0 0 1 5.5 5.5v19a5.5 5.5 0 0 1-11 0v-19a5.5 5.5 0 0 1 5.5-5.5Z"/>
+  <path fill="#8074AA" d="M42.5 12a5.5 5.5 0 0 1 5.5 5.5v27a5.5 5.5 0 0 1-11 0v-27a5.5 5.5 0 0 1 5.5-5.5Z"/>
+</svg>

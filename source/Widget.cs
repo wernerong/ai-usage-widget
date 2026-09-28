@@ -71,10 +71,15 @@ internal sealed class Widget : Window
         Content = Surface;
         ApplyTheme();
         AutomationProperties.SetName(Surface, "AI Usage Widget");
-        using (var stream = AssetLoader.Open(new Uri("avares://AIUsageWidget/Assets/widget.png"))) Icon = new WindowIcon(stream);
+        var windowIcon = OperatingSystem.IsWindows() ? "widget.ico" : "widget.png";
+        using (var stream = AssetLoader.Open(new Uri($"avares://AIUsageWidget/Assets/{windowIcon}"))) Icon = new WindowIcon(stream);
         if (createTray)
         {
-            tray = new TrayIcon { Icon = Icon, ToolTipText = "AI Usage Widget", IsVisible = true };
+            // Status icons have a separate small-size asset; a 1024px app icon
+            // should never be resampled all the way down to the menu bar.
+            var trayAsset = OperatingSystem.IsWindows() ? "tray.ico" : "tray.png";
+            using var stream = AssetLoader.Open(new Uri($"avares://AIUsageWidget/Assets/{trayAsset}"));
+            tray = new TrayIcon { Icon = new WindowIcon(stream), ToolTipText = "AI Usage Widget", IsVisible = true };
             // On macOS the status item opens its native menu. A click must not also hide the widget.
             if (!OperatingSystem.IsMacOS()) tray.Clicked += (_, _) => ToggleVisible();
             TrayIcon.SetIcons(Application.Current!, new TrayIcons { tray });

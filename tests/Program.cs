@@ -10,13 +10,20 @@ using UsageWidget;
 internal static class UiChecks
 {
     [STAThread]
-    public static int Main()
+    public static int Main(string[] args)
     {
+        if (args is ["--generate-icons", var assets])
+        {
+            AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+            IconAssets.Generate(Path.GetFullPath(assets));
+            return 0;
+        }
         GrokBotChecks.Run().GetAwaiter().GetResult();
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
         AdditionalProviderChecks.Run().GetAwaiter().GetResult();
         AutomaticUpdateChecks.Run().GetAwaiter().GetResult();
         AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+        IconChecks.Run();
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }
         using var grok = new GrokProvider();
