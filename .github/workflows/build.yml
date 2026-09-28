@@ -58,12 +58,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           package=$(find dist -name '*.pkg' -maxdepth 1 | head -1)
-          installer -pkg "$package" -target CurrentUserHome
+          installer -pkg "$package" -target CurrentUserHomeDirectory
           executable="$HOME/Applications/AI Usage Widget.app/Contents/MacOS/AIUsageWidget"
           test -x "$executable"
           "$executable" --version
           "$executable" --self-test
-          installer -pkg "$package" -target CurrentUserHome
+          installer -pkg "$package" -target CurrentUserHomeDirectory
           codesign --verify --deep --strict "$HOME/Applications/AI Usage Widget.app"
       - uses: actions/upload-artifact@v4
         with:

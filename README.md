@@ -81,6 +81,8 @@ dotnet publish source/UsageWidget.csproj -c Release -r win-x64 --self-contained 
 
 The installer copies the build to `%LOCALAPPDATA%\Programs\AIUsageWidget`, creates a Start menu shortcut, enables **Start with Windows**, and launches the widget. Exit an existing instance before reinstalling. Run `Uninstall.ps1` to uninstall; logins and preferences are preserved.
 
+To build the Windows Setup executable, install [Inno Setup 6](https://jrsoftware.org/isdl.php) and run `./scripts/build-windows.ps1`; the installer is written to `dist/`.
+
 For portable use, run `app\AIUsageWidget.exe`. Framework-dependent builds can use `--self-contained false` and require the .NET 10 Runtime; the Windows Desktop Runtime is no longer required.
 
 ## Build from source: macOS
@@ -93,7 +95,7 @@ cd ai-usage-widget
 bash scripts/build-macos.sh
 ```
 
-The script chooses the current CPU architecture. To choose explicitly, pass `osx-arm64` for Apple Silicon or `osx-x64` for Intel. It builds a self-contained `.app` bundle and a versioned ZIP under `dist/`, including `Install.command` and `Uninstall.command`.
+The script chooses the current CPU architecture. To choose explicitly, pass `osx-arm64` for Apple Silicon or `osx-x64` for Intel. It builds a self-contained `.app` bundle and a versioned ZIP under `dist/`, including `Install.command` and `Uninstall.command`, plus a native `.pkg` installer.
 
 Extract the ZIP and run `Install.command`. This installs to `~/Applications/AI Usage Widget.app`, enables **Start at login**, and opens the widget. Startup uses `~/Library/LaunchAgents/com.wernerong.ai-usage-widget.plist` to launch automatically at subsequent logins. Disable **Start at login** from the menu to remove this file.
 

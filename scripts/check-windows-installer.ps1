@@ -4,8 +4,11 @@ $version = ([xml](Get-Content (Join-Path $repoDir 'source\UsageWidget.csproj')))
 $installer = Join-Path $repoDir "dist\AIUsageWidget-$version-windows-x64-setup.exe"
 $destination = Join-Path $env:TEMP ('AIUsageWidget-installer-check-' + [guid]::NewGuid().ToString('N'))
 function Run-Setup {
-    $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/MERGETASKS="!startup,!desktopicon"', "/DIR=`"$destination`"") -WindowStyle Hidden -Wait -PassThru
-    if ($process.ExitCode -ne 0) { throw "Setup failed: $($process.ExitCode)" }
+    $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/LOG', '/MERGETASKS="!startup,!desktopicon"', "/DIR=`"$destination`"") -WindowStyle Hidden -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        Get-ChildItem $env:TEMP -Filter 'Setup Log*.txt' | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content
+        throw "Setup failed: $($process.ExitCode)"
+    }
 }
 Run-Setup
 $executable = Join-Path $destination 'AIUsageWidget.exe'
