@@ -52,3 +52,38 @@ archive="$repo_dir/dist/AIUsageWidget-$version-$rid.zip"
 ditto -c -k --sequesterRsrc --keepParent "$stage" "$archive"
 echo "Built: $archive"
 echo "Application: $app"
+
+# A native per-user Installer package. Preserve the path used by startup entries.
+component="$stage_root/widget-component.pkg"
+package_root="$stage_root/payload"
+mkdir -p "$package_root"
+ditto "$app" "$package_root/AI Usage Widget.app"
+pkgbuild --analyze --root "$package_root" "$stage_root/components.plist"
+/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$stage_root/components.plist"
+/usr/libexec/PlistBuddy -c 'Set :0:BundleHasStrictIdentifier true' "$stage_root/components.plist"
+pkgbuild --root "$package_root" --component-plist "$stage_root/components.plist" \
+    --identifier com.wernerong.ai-usage-widget.pkg --version "$version" \
+    --install-location /Applications "$component"
+architecture=arm64
+[[ "$rid" == osx-x64 ]] && architecture=x86_64
+cat > "$stage_root/Distribution.xml" <<DIST
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>AI Usage Widget</title>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <options customize="never" require-scripts="false" hostArchitectures="$architecture"/>
+  <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+  <volume-check><allowed-os-versions><os-version min="13.0"/></allowed-os-versions></volume-check>
+  <choices-outline><line choice="widget"/></choices-outline>
+  <choice id="widget" visible="false" title="AI Usage Widget"><pkg-ref id="com.wernerong.ai-usage-widget.pkg"/></choice>
+  <pkg-ref id="com.wernerong.ai-usage-widget.pkg" version="$version" onConclusion="None">widget-component.pkg</pkg-ref>
+  <pkg-ref id="com.wernerong.ai-usage-widget.pkg"><must-close><app id="com.wernerong.ai-usage-widget"/></must-close></pkg-ref>
+</installer-gui-script>
+DIST
+installer="$repo_dir/dist/AIUsageWidget-$version-$rid.pkg"
+productbuild --distribution "$stage_root/Distribution.xml" --package-path "$stage_root" \
+    --resources "$repo_dir/installer/macos" "$installer"
+pkgutil --expand "$installer" "$stage_root/verify-package"
+test -s "$stage_root/verify-package/Distribution"
+echo "Installer: $installer"

@@ -22,6 +22,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Restore pinned dependencies
         run: dotnet restore tests/UsageWidget.UiChecks.csproj --locked-mode
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content source/UsageWidget.csproj)).Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and project version differ.' }
       - name: Build
         run: dotnet build source/UsageWidget.csproj -c Release --no-restore
       - name: Check provider parsing and refresh behavior
@@ -36,15 +42,69 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          dotnet publish source/UsageWidget.csproj -c Release -r win-x64 --self-contained true -o app
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $version = ([xml](Get-Content source/UsageWidget.csproj)).Project.PropertyGroup.Version
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Compress-Archive -Path app,Install.ps1,Uninstall.ps1,README.md,CHANGELOG.md -DestinationPath "dist/AIUsageWidget-$version-win-x64.zip"
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          ./scripts/build-windows.ps1
+      - name: Check Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-installer.ps1
       - name: Package macOS
         if: runner.os == 'macOS'
         run: bash scripts/build-macos.sh ${{ matrix.rid }}
+      - name: Check macOS installer
+        if: runner.os == 'macOS'
+        run: |
+          package=$(find dist -name '*.pkg' -maxdepth 1 | head -1)
+          installer -pkg "$package" -target CurrentUserHome
+          executable="$HOME/Applications/AI Usage Widget.app/Contents/MacOS/AIUsageWidget"
+          test -x "$executable"
+          "$executable" --version
+          "$executable" --self-test
+          installer -pkg "$package" -target CurrentUserHome
+          codesign --verify --deep --strict "$HOME/Applications/AI Usage Widget.app"
       - uses: actions/upload-artifact@v4
         with:
           name: AIUsageWidget-${{ matrix.rid }}
-          path: dist/*.zip
+          path: |
+            dist/*.exe
+            dist/*.pkg
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: AIUsageWidget-*
+          path: installers
+          merge-multiple: true
+      - name: Publish installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cd installers
+          test "$(find . -maxdepth 1 -name '*.exe' | wc -l)" -eq 1
+          test "$(find . -maxdepth 1 -name '*.pkg' | wc -l)" -eq 2
+          sha256sum *.exe *.pkg > SHA256SUMS.txt
+          cat > /tmp/release-notes.md <<'NOTES'
+          Download the installer for your computer:
+          - Windows x64: `windows-x64-setup.exe`
+          - Mac Apple Silicon: `osx-arm64.pkg`
+          - Mac Intel: `osx-x64.pkg`
+
+          Includes Grok Bot usage on Windows, compact island layouts, and a bundled runtime. Existing widget preferences and provider logins are preserved. Quit the widget before upgrading.
+
+          These installers are unsigned; macOS packages are not notarized. Windows SmartScreen/macOS Gatekeeper may require additional confirmation. Grok Bot authentication currently supports Windows only.
+          NOTES
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "AI Usage Widget $GITHUB_REF_NAME" --notes-file /tmp/release-notes.md --draft
+          fi
+          gh release upload "$GITHUB_REF_NAME" *.exe *.pkg SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

@@ -4,6 +4,19 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-09-28
+
+### Added
+
+- Package Windows as a per-user Setup executable with shortcuts, an optional startup setting, and standard uninstall support.
+- Package Apple Silicon and Intel Macs as native per-user installers with a bundled runtime.
+- Build, smoke-test, and publish installers with checksums on version tags. Preserve preferences and existing provider logins during upgrades.
+
+### Distribution
+
+- Installers are currently unsigned and macOS packages are not notarized. Operating-system verification prompts may appear.
+
+
 ## [1.8.0] - 2026-09-28
 
 ### Changed

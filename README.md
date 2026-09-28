@@ -2,7 +2,23 @@
 
 A floating desktop widget for checking Codex, Grok, and Grok Bot usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.8.0](https://github.com/wernerong/ai-usage-widget/tree/v1.8.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.8.1](https://github.com/wernerong/ai-usage-widget/tree/v1.8.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+
+## Download and install
+
+Download the installer for your computer from [the latest release](https://github.com/wernerong/ai-usage-widget/releases/latest):
+
+| Computer | Download | Install |
+| --- | --- | --- |
+| Windows 10/11, x64 | `AIUsageWidget-1.8.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.8.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.8.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+
+No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before upgrading. Existing preferences and provider logins are preserved.
+
+These installers are not publisher-signed/notarized yet. Windows SmartScreen or macOS Gatekeeper may require additional confirmation; this is not a warning-free distribution. On macOS, use the system's **Privacy & Security → Open Anyway** option if it is offered for the downloaded installer/app. Do not disable system security. Signing and notarization require the maintainer's signing certificates.
+
+To remove the Mac app, turn off **Start at login**, quit the widget, and move it from your home Applications folder to Trash. Preferences remain available for reinstallation.
 
 ## Features
 
@@ -52,7 +68,7 @@ Choose **Layout → Island bar** for a rounded, 40-pixel-high strip. Switching l
 
 Drag anywhere on the bar to move it. Its position and layout persist across restarts. Dragging keeps the whole widget on a connected screen and can cross to another monitor, including monitors with different scaling or placed to the left or above. It snaps across shared edges rather than leaving part of the widget offscreen; unplugging a monitor brings it back onto an available screen. **Reset position** returns it to the top center. With both providers it is 336 pixels wide; selecting only Codex or Grok makes it narrower. Dimensions use logical pixels and follow display scaling. On Windows, its height adapts to the current monitor’s horizontal taskbar with even margins (40 logical pixels for a standard 48-pixel taskbar). Drag it into an unused part of the taskbar to center it vertically; the saved position can include the taskbar area. It is a floating overlay and does not reserve taskbar space or avoid taskbar buttons automatically. On macOS, movement stays within the usable desktop below the menu bar and outside the Dock. With **Always on top** enabled, the Windows island restores its position above an overlapping taskbar when switching apps, without taking keyboard focus. Auto-hidden taskbars do not hide the widget. Percentage display, opacity, always-on-top, and right-click settings work in this layout too.
 
-## Windows build and install
+## Build from source: Windows
 
 Run in PowerShell:
 
@@ -67,7 +83,7 @@ The installer copies the build to `%LOCALAPPDATA%\Programs\AIUsageWidget`, creat
 
 For portable use, run `app\AIUsageWidget.exe`. Framework-dependent builds can use `--self-contained false` and require the .NET 10 Runtime; the Windows Desktop Runtime is no longer required.
 
-## macOS build and install
+## Build from source: macOS
 
 Run on a Mac with the .NET 10 SDK:
 
@@ -144,7 +160,7 @@ Additional switches:
 
 Exit the running widget before render/diagnostic checks. Render outputs require a writable executable directory. Live diagnostics and screenshots may contain personal usage information; generated files are excluded from Git. A second normal launch restores the existing window instead of starting another monitor.
 
-GitHub Actions builds and runs parsing and headless UI checks on Windows, Intel macOS, and Apple Silicon macOS. It packages versioned Windows and Mac ZIPs as workflow artifacts. Native rendering, authentication, installation, and login behavior are separate manual smoke checks. Workflow artifacts do not automatically create a GitHub release.
+GitHub Actions builds and runs parsing and headless UI checks on Windows, Intel macOS, and Apple Silicon macOS. It packages versioned Windows and Mac ZIPs as workflow artifacts. Native rendering, authentication, installation, and login behavior are separate manual smoke checks. Version tags build installers, run installation smoke checks, and publish installer downloads and SHA-256 checksums in a GitHub release. Normal branch builds retain workflow artifacts.
 
 ## Adding a provider
 
@@ -158,7 +174,7 @@ Definitions in `source/Widget.cs` supply a stable settings ID, name, usage URL, 
 
 ## Credits
 
-Platform icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons); their license is included in [source/Assets/LICENSE-lobe-icons.txt](source/Assets/LICENSE-lobe-icons.txt). Platform names and marks belong to their owners. The application uses [Avalonia](https://avaloniaui.net/) for Windows and macOS rendering.
+Codex and Grok platform icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons); their license is included in [source/Assets/LICENSE-lobe-icons.txt](source/Assets/LICENSE-lobe-icons.txt). Platform names and marks belong to their owners. The application uses [Avalonia](https://avaloniaui.net/) for Windows and macOS rendering.
 
 References: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Grok billing implementation](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
 
