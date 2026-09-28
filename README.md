@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.11.1](https://github.com/wernerong/ai-usage-widget/tree/v1.11.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.11.2](https://github.com/wernerong/ai-usage-widget/tree/v1.11.2)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.11.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.11.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.11.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.11.2-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.11.2-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.11.2-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -21,6 +21,8 @@ These installers are not publisher-signed/notarized yet. Windows SmartScreen or 
 To remove the Mac app, turn off **Start at login**, quit the widget, and move it from your home Applications folder to Trash. Preferences remain available for reinstallation.
 
 ## Automatic updates
+
+**Mac login-startup fix:** v1.11.2 keeps the updater alive while a login-started widget exits. Existing v1.11.0/v1.11.1 login agents can stop the helper before it replaces the app. If an older widget disappears without upgrading, reopen it from `~/Applications` in Finder once; its normal startup update will complete. v1.11.2 preserves your startup settings and updates the agent for the next login. Disabling/re-enabling startup is not required.
 
 Install v1.11.0 or later once. After that, the widget checks this repository's stable GitHub Releases 30–90 seconds after launch and about every six hours while running. It downloads the package for the installed architecture, verifies its size and checksum, then briefly restarts itself without opening an installer. It waits while a widget dialog or drag is active. Preferences, saved position, provider selections, and credential-store entries remain outside the replaced application files.
 

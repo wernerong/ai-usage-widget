@@ -7,6 +7,13 @@ internal static class AutomaticUpdateChecks
         var count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }
         Check(new Preferences().AutomaticUpdates, "Automatic updates default on for existing preferences");
+        var agent = PlatformServices.LaunchAgent("/Applications/Example.app/Contents/MacOS/Example");
+        Check(!PlatformServices.EnableUpdateHandoff(agent), "New launch agents already preserve the update helper");
+        var abandonKey = agent.Descendants("key").Single(k => k.Value == "AbandonProcessGroup");
+        abandonKey.NextNode!.Remove(); abandonKey.Remove();
+        agent.Root!.Element("dict")!.Add(new System.Xml.Linq.XElement("key", "UserCustomSetting"), new System.Xml.Linq.XElement("string", "preserved"));
+        Check(PlatformServices.EnableUpdateHandoff(agent) && agent.ToString().Contains("preserved"), "Legacy agent migration adds handoff policy and preserves custom settings");
+        Check(!PlatformServices.EnableUpdateHandoff(agent), "Launch-agent migration is idempotent");
         var config = System.Text.Json.Nodes.JsonNode.Parse("""{"statusLine":{"command":"\"old.exe\" --capture-antigravity","enabled":false},"theme":"dark"}""")!.AsObject();
         Check(AntigravityProvider.MigrateCommand(config, "old.exe", "current.exe") &&
             config["statusLine"]!["enabled"]!.GetValue<bool>() == false && config["theme"]!.GetValue<string>() == "dark",

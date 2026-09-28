@@ -4,6 +4,14 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-09-28
+
+- Fix automatic updates for login-started Macs: allow the updater helper to survive the widget exiting instead of being killed with its launchd process group.
+- Migrate existing startup configuration on normal installed-app launches while preserving custom settings and leaving startup disabled if it was disabled. The migrated policy takes effect when launchd next loads the job.
+- Exercise the actual macOS launch-agent process tree in packaged upgrade tests, in addition to corrupt-package rejection and restart verification on all three platforms.
+- Preserve macOS signatures through automatic updates by sealing managed .NET files under Resources, with relative links for the runtime. Verify the signature after an actual upgrade and after a transfer without extended attributes.
+- Includes all sharp icon improvements from v1.11.1. Macs still using v1.11.0/v1.11.1's old login agent should reopen the widget from Finder once to update; the repaired agent then takes effect at the next login.
+
 ## [1.11.1] - 2026-09-28
 
 - Render provider logos from vector paths at the display's native scale, with pixel-aligned placement in every layout and both themes. Improve filtering for the existing Grok Bot raster artwork.

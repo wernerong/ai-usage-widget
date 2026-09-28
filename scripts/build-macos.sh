@@ -14,6 +14,23 @@ app="$stage/AI Usage Widget.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 dotnet publish "$repo_dir/source/UsageWidget.csproj" -c Release -r "$rid" --self-contained true -o "$app/Contents/MacOS"
 chmod +x "$app/Contents/MacOS/AIUsageWidget"
+# Non-Mach-O code in MacOS is signed via extended attributes, which the
+# updater's ZIP extraction cannot preserve. Seal managed files as resources
+# instead (Apple TN2206); keep relative links for the .NET host and resolver.
+managed="$app/Contents/Resources/managed"
+mkdir -p "$managed"
+for file in "$app/Contents/MacOS/"*.dll "$app/Contents/MacOS/"*.json "$app/Contents/MacOS/"*.pdb; do
+    [[ -f "$file" ]] || continue
+    name="$(basename "$file")"
+    mv "$file" "$managed/$name"
+    ln -s "../Resources/managed/$name" "$file"
+done
+# The host resolves its managed DLL's real directory before loading the
+# self-contained runtime, so native dependencies must be reachable there too.
+for file in "$app/Contents/MacOS/"*.dylib "$app/Contents/MacOS/createdump"; do
+    [[ -f "$file" ]] || continue
+    ln -s "../../MacOS/$(basename "$file")" "$managed/$(basename "$file")"
+done
 iconset="$repo_dir/source/Assets/AppIcon.iconset"
 # Every representation is rendered from vector artwork at its native size.
 # Never enlarge a small PNG to fill the Retina / Finder representations.
@@ -40,6 +57,10 @@ plutil -lint "$app/Contents/Info.plist"
 # Ad-hoc signing is for local builds, not Developer ID/notarized distribution.
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
+
+# Simulate an archive transfer without filesystem extended attributes.
+ditto --noextattr --norsrc "$app" "$stage_root/signature-check.app"
+codesign --verify --deep --strict "$stage_root/signature-check.app"
 
 # Use the same update-ready bundle for the native installer and update feed.
 # Ad-hoc signing remains the default until Developer ID credentials are supplied.

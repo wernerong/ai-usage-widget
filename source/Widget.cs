@@ -109,6 +109,11 @@ internal sealed class Widget : Window
             {
                 var backend = new GithubWidgetUpdates();
                 if (backend.Available) AntigravityProvider.MigrateInstalledCommand();
+                if (backend.Available)
+                {
+                    try { PlatformServices.MigrateStartupForUpdates(); }
+                    catch { Surface.Notice = "Could not update startup settings; toggle Start at login to retry."; }
+                }
                 updates = new AutomaticUpdates(backend, () => Monitor.Preferences.AutomaticUpdates,
                     () => !closing && dragOffset == null && !contextMenu.IsOpen && OwnedWindows.Count == 0,
                     () => { backend.Apply(!IsVisible); Quit(); });

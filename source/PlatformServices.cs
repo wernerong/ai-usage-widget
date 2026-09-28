@@ -30,7 +30,33 @@ internal static class PlatformServices
             new XElement("key", "Label"), new XElement("string", LaunchAgentId),
             new XElement("key", "ProgramArguments"), new XElement("array", new XElement("string", executable)),
             new XElement("key", "RunAtLoad"), new XElement("true"),
+            // The update helper must survive the widget's graceful shutdown.
+            // launchd otherwise kills every remaining member of this group.
+            new XElement("key", "AbandonProcessGroup"), new XElement("true"),
             new XElement("key", "ProcessType"), new XElement("string", "Interactive"))));
+    internal static bool EnableUpdateHandoff(XDocument agent)
+    {
+        var dict = agent.Root!.Element("dict")!;
+        var key = dict.Elements("key").SingleOrDefault(k => k.Value == "AbandonProcessGroup");
+        if (key?.NextNode is XElement { Name.LocalName: "true" }) return false;
+        if (key == null) dict.Add(new XElement("key", "AbandonProcessGroup"), new XElement("true"));
+        else if (key.NextNode is XElement value) value.ReplaceWith(new XElement("true"));
+        else throw new InvalidDataException("Invalid startup configuration.");
+        return true;
+    }
+    internal static void MigrateStartupForUpdates()
+    {
+        if (!OperatingSystem.IsMacOS() || !File.Exists(LaunchAgentPath)) return;
+        var agent = XDocument.Load(LaunchAgentPath);
+        var arguments = agent.Root!.Element("dict")!.Elements("key")
+            .SingleOrDefault(k => k.Value == "ProgramArguments")?.NextNode as XElement;
+        // Do not retarget startup entries belonging to another installed copy.
+        if (arguments?.Element("string")?.Value != Environment.ProcessPath || !EnableUpdateHandoff(agent)) return;
+        agent.Save(LaunchAgentPath + ".tmp");
+        File.Move(LaunchAgentPath + ".tmp", LaunchAgentPath, true);
+        // launchd reads the new policy at next login. Never unload our own job:
+        // doing so would kill this process and interrupt the current session.
+    }
     public static void SetStartup(bool enabled)
     {
         var executable = Environment.ProcessPath ?? throw new InvalidOperationException("Cannot locate this application.");
