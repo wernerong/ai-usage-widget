@@ -12,9 +12,9 @@ internal static class UiChecks
     [STAThread]
     public static int Main()
     {
-        AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         GrokBotChecks.Run().GetAwaiter().GetResult();
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
+        AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }
         using var grok = new GrokProvider();
