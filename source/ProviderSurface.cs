@@ -8,16 +8,23 @@ using Avalonia.Platform;
 
 namespace UsageWidget;
 
-internal sealed class ProviderSurface : Control, IDisposable
+internal sealed partial class ProviderSurface : Control, IDisposable
 {
     private readonly UsageMonitor monitor;
     private readonly Dictionary<string, VectorIcon> logos = new();
     private Bitmap? grokBotLogo;
     private int page;
-    internal int PageCount => Math.Max(1, (monitor.Enabled.Length + 2) / 3);
+    internal WidgetLayout Layout => monitor.Preferences.Layout;
+    internal int ProvidersPerPage => Layout.PageSize();
+    internal int PageCount => Math.Max(1, (monitor.Enabled.Length + ProvidersPerPage - 1) / ProvidersPerPage);
     internal int Page => Math.Clamp(page, 0, PageCount - 1);
-    internal ProviderDefinition[] VisibleProviders => monitor.Enabled.Skip(Page * 3).Take(3).ToArray();
+    internal ProviderDefinition[] VisibleProviders => monitor.Enabled.Skip(Page * ProvidersPerPage).Take(ProvidersPerPage).ToArray();
     internal void ChangePage(int direction) => page = (Page + direction + PageCount) % PageCount;
+    internal void ShowProvider(string? id)
+    {
+        var index = Array.FindIndex(monitor.Enabled, p => p.Id == id);
+        page = index >= 0 ? index / ProvidersPerPage : Page;
+    }
     private Color Tone(string light, string dark) => Color.Parse(monitor.Preferences.DarkMode ? dark : light);
     private Color Bg => Tone("#F2F3F6", "#202228");
     private Color Card => Tone("#FDFDFE", "#292C34");
@@ -42,11 +49,15 @@ internal sealed class ProviderSurface : Control, IDisposable
         var known = quotas.Where(q => q.Used != null || q.Note == "Unlimited").ToArray();
         return known.Length > 0 ? [known.OrderByDescending(q => q.Used).First()] : [new(p.QuotaLabels[0], null, null)];
     }
-    internal double DisplayIslandWidth(ProviderDefinition p) => monitor.Preferences.CompactIsland
+    internal double DisplayIslandWidth(ProviderDefinition p) => Layout == WidgetLayout.CompactIsland
         ? 30 + CompactQuotas(p).Length * (CompactQuotas(p).Length > 1 ? 62 : 44) : IslandProviderWidth(p);
     private double PagerWidth => PageCount > 1 ? 26 : 0;
-    public Size DesiredWidgetSize => monitor.Preferences.Island ? new(24 + VisibleProviders.Sum(DisplayIslandWidth) + PagerWidth, IslandHeight) : monitor.Preferences.Compact ? new(VisibleProviders.Length * 100 - 4 + PagerWidth, 96) : new(320, CardsHeight);
-    internal bool IsPager(Point point) => PageCount > 1 && (monitor.Preferences.Island || monitor.Preferences.Compact
+    public Size DesiredWidgetSize => Layout.IsAdditional() ? AdditionalSize : Layout.IsIsland() ? new(24 + VisibleProviders.Sum(DisplayIslandWidth) + PagerWidth, IslandHeight) : Layout == WidgetLayout.RoundBadges ? new(VisibleProviders.Length * 100 - 4 + PagerWidth, 96) : new(320, CardsHeight);
+    internal bool IsPager(Point point) => PageDirectionAt(point) != 0;
+    internal int PageDirectionAt(Point point) => PageCount <= 1 ? 0 : Layout.IsAdditional()
+        ? PreviousPageBounds.Contains(point) ? -1 : NextPageBounds.Contains(point) ? 1 : 0
+        : LegacyPagerAt(point) ? 1 : 0;
+    private bool LegacyPagerAt(Point point) => PageCount > 1 && (Layout.IsIsland() || Layout == WidgetLayout.RoundBadges
         ? new Rect(DesiredWidgetSize.Width - 25, DesiredWidgetSize.Height / 2 - 13, 24, 26).Contains(point)
         : new Rect(12, CardsHeight - 23, 180, 23).Contains(point));
     private void Pager(DrawingContext g)
@@ -100,8 +111,9 @@ internal sealed class ProviderSurface : Control, IDisposable
     public override void Render(DrawingContext g)
     {
         base.Render(g);
-        if (monitor.Preferences.Island) { Island(g); Pager(g); return; }
-        if (monitor.Preferences.Compact)
+        if (Layout.IsAdditional()) { RenderAdditional(g); return; }
+        if (Layout.IsIsland()) { Island(g); Pager(g); return; }
+        if (Layout == WidgetLayout.RoundBadges)
         {
             foreach (var (provider, index) in VisibleProviders.Select((p, i) => (p, i))) Badge(g, provider, index * 100);
             Pager(g);
@@ -144,7 +156,7 @@ internal sealed class ProviderSurface : Control, IDisposable
     }
     private void Island(DrawingContext g)
     {
-        if (monitor.Preferences.CompactIsland) { CompactIsland(g); return; }
+        if (Layout == WidgetLayout.CompactIsland) { CompactIsland(g); return; }
         var center = IslandHeight / 2;
         Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
         double x = 12;
@@ -159,11 +171,11 @@ internal sealed class ProviderSurface : Control, IDisposable
             for (var i = 0; i < p.QuotaLabels.Length; i++)
             {
                 var q = state.Reading?.Quotas.ElementAtOrDefault(i);
-                var value = q?.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
-                var color = state.Stale ? Amber : q?.Used >= 90 ? Tone("#C14E4E", "#F18484") : q?.Used >= 75 ? Amber : Accent(p.Accent);
+                var value = DisplayPercentage(q);
+                var color = QuotaColor(p.Accent, q, state.Stale);
                 var left = x + IslandNameWidth(p) + i * 64;
                 Txt(g, Label(p.QuotaLabels[i]), left, center - 15, 9, Muted);
-                Txt(g, value is { } v ? $"{v:0}%" : q?.Note == "Unlimited" ? "∞" : "—", left, center - 4, 14, state.Stale ? Amber : Main, true);
+                Txt(g, PercentageText(q), left, center - 4, 14, state.Stale ? Amber : Main, true);
                 Round(g, new(left, center + 14, 48, 2), 1, Tone("#E9EBF0", "#414753"));
                 if (value is > 0) Round(g, new(left, center + 14, 48 * Math.Clamp(value.Value, 0, 100) / 100, 2), 1, color);
             }
@@ -184,10 +196,9 @@ internal sealed class ProviderSurface : Control, IDisposable
             var quotas = CompactQuotas(p);
             foreach (var q in quotas)
             {
-                var value = q.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
                 var color = state.Stale || Notice != null ? Amber : Main;
                 if (quotas.Length > 1) { Txt(g, Label(q.Label), left, center - 5, 9, Muted); left += 18; }
-                Txt(g, value is { } v ? $"{v:0}%" : q?.Note == "Unlimited" ? "∞" : "—", left, center - 9, 13, color, true);
+                Txt(g, PercentageText(q), left, center - 9, 13, color, true);
                 if (state.Stale) g.DrawEllipse(Brush(Amber), null, new Point(left + 14, center + 11), 1.5, 1.5);
                 left += 44;
             }
@@ -203,9 +214,9 @@ internal sealed class ProviderSurface : Control, IDisposable
     private void Row(DrawingContext g, Quota quota, double y, Color accent, bool stale)
     {
         Txt(g, quota.Label, 24, y, 12, Muted);
-        var value = quota.Used is { } n ? monitor.Preferences.ShowUsed ? n : 100 - n : (double?)null;
-        var color = stale ? Amber : quota.Used >= 90 ? Tone("#C14E4E", "#F18484") : quota.Used >= 75 ? Amber : Accent(accent);
-        var label = Text(value is { } v ? $"{v:0}%" : quota.Note == "Unlimited" ? "∞" : "—", 20, value == null ? Muted : stale || quota.Used >= 75 ? color : Main, true);
+        var value = DisplayPercentage(quota);
+        var color = QuotaColor(accent, quota, stale);
+        var label = Text(PercentageText(quota), 20, value == null ? Muted : stale || quota.Used >= 75 ? color : Main, true);
         g.DrawText(label, new(296 - label.Width, y - 6));
         Round(g, new(24, y + 19, 272, 4), 2, Tone("#E9EBF0", "#414753"));
         if (value is > 0) Round(g, new(24, y + 19, 272 * value.Value / 100, 4), 2, color);
@@ -224,21 +235,20 @@ internal sealed class ProviderSurface : Control, IDisposable
         var titleX = x + (96 - titleWidth - 17) / 2;
         Logo(g, p, new(titleX, 19, 12, 12));
         Txt(g, p.Name, titleX + 17, 19, titleSize, Muted, true);
-        string Percent(Quota? q) => q?.Used is { } n ? $"{(monitor.Preferences.ShowUsed ? n : 100 - n):0}%" : q?.Note == "Unlimited" ? "∞" : "—";
         void Center(string text, double y, double size, Color color, bool bold = false)
         {
             var ft = Text(text, size, color, bold); g.DrawText(ft, new(x + 48 - ft.Width / 2, y));
         }
         if (p.QuotaLabels.Length > 1)
         {
-            Center($"{Label(p.QuotaLabels[0])}  {Percent(quotas.ElementAtOrDefault(0))}", 35, 14, Main, true);
-            Center($"{Label(p.QuotaLabels[1])}  {Percent(quotas.ElementAtOrDefault(1))}", 53, 11, Muted);
+            Center($"{Label(p.QuotaLabels[0])}  {PercentageText(quotas.ElementAtOrDefault(0))}", 35, 14, Main, true);
+            Center($"{Label(p.QuotaLabels[1])}  {PercentageText(quotas.ElementAtOrDefault(1))}", 53, 11, Muted);
             var free = p.HasFreeResets ? state.Reading?.FreeResets : null;
             Center(state.Stale ? "STALE" : free > 0 ? $"↻ {free} free" : monitor.Preferences.ShowUsed ? "used" : "left", 70, 9, state.Stale ? Amber : Muted);
         }
         else
         {
-            Center(Percent(quotas.FirstOrDefault()), 34, 22, Main, true);
+            Center(PercentageText(quotas.FirstOrDefault()), 34, 22, Main, true);
             Center(state.Stale ? "STALE" : $"{Label(p.QuotaLabels[0])} {(monitor.Preferences.ShowUsed ? "used" : "left")}", 62, 10, state.Stale ? Amber : Muted);
         }
     }
@@ -246,8 +256,7 @@ internal sealed class ProviderSurface : Control, IDisposable
     {
         var rect = new Rect(x + inset, inset, 96 - inset * 2, 96 - inset * 2);
         g.DrawEllipse(null, new Pen(Brush(Tone("#DDE1E9", "#454C59")), 2), rect);
-        if (quota.Used is not { } used) return;
-        var value = monitor.Preferences.ShowUsed ? used : 100 - used;
+        if (quota.Used is not { } used || DisplayPercentage(quota) is not { } value) return;
         if (value <= 0) return;
         var pen = new Pen(Brush(stale ? Amber : used >= 90 ? Tone("#C14E4E", "#F18484") : color), 2, lineCap: PenLineCap.Round);
         if (value >= 100) { g.DrawEllipse(null, pen, rect); return; }
@@ -263,7 +272,8 @@ internal sealed class ProviderSurface : Control, IDisposable
     }
     internal ProviderDefinition? ProviderAt(Point point)
     {
-        if (monitor.Preferences.Island)
+        if (Layout.IsAdditional()) return ProviderRegions.FirstOrDefault(r => r.Bounds.Contains(point)).Provider;
+        if (Layout.IsIsland())
         {
             if (point.Y < 3 || point.Y > IslandHeight - 3) return null;
             double left = 12;
@@ -274,7 +284,7 @@ internal sealed class ProviderSurface : Control, IDisposable
             }
             return null;
         }
-        if (monitor.Preferences.Compact)
+        if (Layout == WidgetLayout.RoundBadges)
         {
             var index = (int)(point.X / 100);
             if (index < 0 || index >= VisibleProviders.Length) return null;

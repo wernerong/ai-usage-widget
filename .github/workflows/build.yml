@@ -55,6 +55,11 @@ jobs:
             tests/bin/Release/net10.0/icon-proof-*.png
             tests/bin/Release/net10.0/compact-island-*.png
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Layout-proofs-${{ matrix.rid }}
+          path: tests/bin/Release/net10.0/render-*.png
+          if-no-files-found: error
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh

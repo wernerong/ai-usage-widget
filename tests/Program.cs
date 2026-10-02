@@ -12,6 +12,9 @@ internal static class UiChecks
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Contains("--native-layout-preview"))
+            return AppBuilder.Configure<LayoutPreviewApp>().UsePlatformDetect().WithInterFont()
+                .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
         if (args is ["--generate-icons", var assets])
         {
             AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
@@ -145,7 +148,7 @@ internal static class UiChecks
             widget.Hide(); widget.Restore();
             Check(widget.Position == dragged, "Island restore preserves dragged position");
             var saved = System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!;
-            Check(saved.Island && saved.X == dragged.X && saved.Y == dragged.Y, "Island choice and dragged position serialize");
+            Check(saved.Layout.IsIsland() && saved.X == dragged.X && saved.Y == dragged.Y, "Island choice and dragged position serialize");
             foreach (var only in providers)
             {
                 foreach (var p in providers) widget.SetProvider(p, true);
@@ -162,7 +165,7 @@ internal static class UiChecks
             widget.SetPercentage(false);
             widget.SaveRender("island-preview.png");
             Click("Layout", "Detailed cards");
-            Check(!monitor.Preferences.Island, "Switching away clears island selection");
+            Check(!monitor.Preferences.Layout.IsIsland(), "Switching away clears island selection");
             Check(widget.Height == 63 + widget.Surface.VisibleProviders.Sum(p => p.CardHeight + 8), "All cards restore full height");
             Check(ReferenceEquals(originalContext, widget.Surface.ContextMenu) && ReferenceEquals(originalNative, widget.NativeMenu), "Menu objects survive all settings callbacks");
             var seen = new HashSet<string>();
@@ -220,7 +223,7 @@ internal static class UiChecks
                 monitor.States[providers[0].Id].Error = null;
                 widget.SetPercentage(!monitor.Preferences.ShowUsed);
                 Check(!darkPixels.SequenceEqual(Pixels()), "Dark layout respects percentage selection");
-                widget.SaveRender("dark-" + (monitor.Preferences.Island ? "island" : monitor.Preferences.Compact ? "badges" : "cards") + ".png");
+                widget.SaveRender("dark-" + (monitor.Preferences.Layout.IsIsland() ? "island" : monitor.Preferences.Layout == WidgetLayout.RoundBadges ? "badges" : "cards") + ".png");
                 Check(System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!.DarkMode, "Dark preference survives serialization");
                 Click("Dark mode");
                 Check(widget.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light && !Find("Dark mode").IsChecked, "Light mode restores immediately");
@@ -251,9 +254,10 @@ internal static class UiChecks
             widget.SetPercentage(false);
             Check(widget.Width == 326, "Codex 5h reappears when available");
             widget.SaveRender("compact-island-both-limits.png");
-            Check(System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!.CompactIsland, "Compact island selection persists");
+            Check(System.Text.Json.JsonSerializer.Deserialize<Preferences>(System.Text.Json.JsonSerializer.Serialize(monitor.Preferences))!.Layout == WidgetLayout.CompactIsland, "Compact island selection persists");
             Click("Layout", "Island bar");
-            Check(!monitor.Preferences.CompactIsland && widget.Width > 326, "Detailed island remains available");
+            Check(monitor.Preferences.Layout == WidgetLayout.IslandBar && widget.Width > 326, "Detailed island remains available");
+            LayoutChecks.Run();
             Console.WriteLine($"PASS: {count} UI checks (menus, sizing, hit testing, real pixels, transparency, stale state)");
             return 0;
         }

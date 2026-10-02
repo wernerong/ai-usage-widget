@@ -4,6 +4,17 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-02
+
+- Add Compact List, Tile Grid, Usage Bars, Focus Mode, and Status Rail alongside all four existing layouts.
+- Show six providers per page in list/grid/bars, one in Focus, and eight in Status Rail. Existing layouts retain three-provider pages.
+- Replace layout flags with a single named preference and migrate existing saved layouts without changing positions, subscriptions, theme, opacity, or updater preferences.
+- Preserve the viewed provider when switching between density levels, and keep paging valid when subscriptions change.
+- Reuse provider details, sharp logos, used/remaining percentages, usage-based severity, missing/unlimited states, and light/dark themes. New layouts support drag, refresh, settings, and previous/next controls.
+- Add real-render checks for all nine layouts, 1–13 selected providers, mixed display scales, preference migration, pointer navigation, and stale/loading/unknown quota states. Publish light/dark layout proofs as build artifacts.
+
+Provider authentication, usage readers, and automatic-update behaviour are unchanged.
+
 ## [1.11.2] - 2026-09-28
 
 - Fix automatic updates for login-started Macs: allow the updater helper to survive the widget exiting instead of being killed with its launchd process group.

@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.11.2](https://github.com/wernerong/ai-usage-widget/tree/v1.11.2)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.12.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.12.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.11.2-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.11.2-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.11.2-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.12.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.12.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.12.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -37,7 +37,7 @@ Packages currently use the existing unsigned Windows/ad-hoc-signed Mac distribut
 ## Features
 
 - Select providers independently; choices persist across restarts. New providers are opt-in.
-- Compact round badges, detailed cards, or a slim island bar. Three providers per page keep every layout small; scroll or use the next-page button to see more.
+- Nine layouts: round badges, detailed cards, both island bars, Compact List, Tile Grid, Usage Bars, Focus Mode, and Status Rail. Layout-aware paging ranges from one to eight providers; scroll or use page controls to see more.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
 - Grok Bot weekly usage, reset time, and on-demand spending (Windows and macOS desktop login).
@@ -69,6 +69,38 @@ Right-click the widget or use its tray/menu bar menu, then open **Subscriptions*
 Open **Percentage display** and choose **Percentage remaining** or **Percentage used**. A checkmark identifies the current choice, and the widget updates immediately. Preferences are preserved across restarts and Windows upgrades from v1.4.0.
 
 Use **Dark mode** in the widget or tray/menu bar menu to switch between dark and light appearance. The choice applies immediately to every layout and persists across restarts.
+
+## Layouts
+
+The five additional layouts below are available in **v1.12.0**. Choose from **Layout** in either the widget context menu or tray/menu bar menu. Existing users keep their selected layout when upgrading; the old `Compact`, `Island`, and `CompactIsland` flags migrate to one named `Layout` preference when settings are next saved.
+
+| Layout | Providers per page | Purpose |
+| --- | ---: | --- |
+| Round badges | 3 | Small graphical overview |
+| Detailed cards | 3 | Full quota and balance details |
+| Compact list | 6 | 320px-wide list with quota labels and reset countdowns |
+| Tile grid | 6 | Two-column dashboard; a single provider uses one compact tile |
+| Usage bars | 6 | 340px-wide quota-centric view with labelled progress bars |
+| Focus mode | 1 | One provider's quotas, resets, free resets, and balance |
+| Status rail | 8 | 200px-wide overview with short quota labels and percentages |
+| Island bar | 3 | Slim horizontal strip with progress bars |
+| Compact island | 3 | Minimal horizontal logos and percentages |
+
+Dimensions are logical pixels and follow display scaling. List rows are 48px; rail rows are 32px. The new layouts stay anchored at the top-left when paging/resizing, subject to screen boundaries. Switching density preserves the first visible provider where possible, and subscription changes clamp the current page. Focus can be navigated with the mouse wheel, footer arrows, or the existing **Provider page** menu.
+
+All layouts honour light/dark mode, used/remaining percentages, opacity, always-on-top, provider selection, and saved position. New layouts can be dragged from their background or provider rows. The header provides settings, with refresh/hide buttons where space permits; F5, Escape, and the context menu remain available in every layout. Hover any provider for the same complete details. Long names and quota labels are ellipsized, never replaced with invented quota types.
+
+Bars follow the selected used/remaining direction, but amber (75% used) and red (90% used) thresholds always reflect actual consumption. Stale readings are marked separately; unknown values stay `—`, and unlimited quotas stay `∞` without a fabricated full bar. Dense layouts display up to two actual quota entries, with any additional entries retained in the shared tooltip.
+
+The following are actual application renders using synthetic sample readings, not live account data:
+
+| Compact list | Tile grid |
+| --- | --- |
+| ![Compact list](docs/layouts/compact-list.png) | ![Tile grid](docs/layouts/grid.png) |
+| Usage bars | Focus mode |
+| ![Usage bars](docs/layouts/bars.png) | ![Focus mode](docs/layouts/focus.png) |
+| Status rail | Status rail, dark |
+| ![Status rail](docs/layouts/status-rail.png) | ![Status rail dark](docs/layouts/status-rail-dark.png) |
 
 ## Compact island
 
@@ -133,10 +165,11 @@ A terminal-only environment variable does not persist into Finder or login launc
 
 | Action | Control |
 | --- | --- |
-| Move | Drag a badge, island bar, or detailed header |
+| Move | Drag a badge, island, detailed header, or new-layout background/provider row |
 | Select providers | Menu → Subscriptions |
 | Choose used or remaining | Menu → Percentage display |
 | Switch layout | Menu → Layout |
+| Change provider page | Mouse wheel, footer arrows, or menu → Provider page |
 | Expand badges | Double-click a badge |
 | See readings and reset dates | Hover a provider |
 | Refresh | F5, refresh button, or menu |
@@ -172,7 +205,12 @@ Additional switches:
 - `--version`: prints the version (invoke the DLL with `dotnet` when using a console).
 - `--diagnose`: fetches selected providers and writes `diagnostics.json` beside the executable.
 - `--render --compact` or `--render --cards`: renders live readings to `widget-preview.png` and exits.
-- `--render-check`: exercises native transitions using synthetic data and writes layout PNGs and `render-checks.txt` beside the executable. User preferences are preserved.
+- `--compact-list`, `--grid`, `--bars`, `--focus`, `--rail`, and `--compact-island`: select the corresponding layout; combine with `--render` for a one-shot capture.
+- `--render-check`: exercises native transitions using synthetic data and writes all nine `render-<layout>.png` and `render-<layout>-dark.png` views, plus `render-checks.txt`, beside the executable. User preferences are preserved.
+
+Headless UI checks cover 1, 2, 3, 4, 6, 7, and 13 providers, every layout and theme, used/remaining display, real pointer paging and dragging, preference migration, unknown/unlimited/missing/stale readings, long labels, and 100–200% render scaling. CI saves the new light/dark captures as `Layout-proofs-<platform>` artifacts alongside the existing icon proofs.
+
+For a native sample-data preview beside the installed widget, run `dotnet run --project tests/UsageWidget.UiChecks.csproj -c Release -- --native-layout-preview --rail` (or another layout switch). This separate test window never saves preferences, calls a real provider reader, creates a tray icon, or starts automatic updates. Connection, startup, and external usage-link actions are disabled in non-persistent previews. Use its context menu → **Exit** when finished.
 
 Exit the running widget before render/diagnostic checks. Render outputs require a writable executable directory. Live diagnostics and screenshots may contain personal usage information; generated files are excluded from Git. A second normal launch restores the existing window instead of starting another monitor.
 

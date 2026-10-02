@@ -1,9 +1,10 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalonia.Media;
 
 namespace UsageWidget;
 
-internal sealed class Preferences
+internal sealed class Preferences : IJsonOnDeserialized
 {
     // Missing entries remain enabled for existing providers; future providers opt in.
     public Dictionary<string, bool> Providers { get; set; } = new();
@@ -17,9 +18,21 @@ internal sealed class Preferences
     public int? Y { get; set; }
     public bool Pinned { get; set; } = true;
     public bool ShowUsed { get; set; }
-    public bool Compact { get; set; }
-    public bool Island { get; set; }
-    public bool CompactIsland { get; set; }
+    private WidgetLayout layout;
+    private bool hasLayout, legacyCompact, legacyIsland, legacyCompactIsland;
+    public WidgetLayout Layout { get => layout; set { layout = value; hasLayout = true; } }
+    // Read old keys, but never write them. Migration is independent of JSON key order.
+    [JsonPropertyName("Compact"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyCompact { get => null; set => legacyCompact = value == true; }
+    [JsonPropertyName("Island"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyIsland { get => null; set => legacyIsland = value == true; }
+    [JsonPropertyName("CompactIsland"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyCompactIsland { get => null; set => legacyCompactIsland = value == true; }
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (!hasLayout) Layout = legacyIsland ? legacyCompactIsland ? WidgetLayout.CompactIsland : WidgetLayout.IslandBar
+            : legacyCompact ? WidgetLayout.RoundBadges : WidgetLayout.DetailedCards;
+    }
     public bool DarkMode { get; set; }
     public bool AutomaticUpdates { get; set; } = true;
     public double Opacity { get; set; } = 0.97;

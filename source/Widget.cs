@@ -53,9 +53,7 @@ internal sealed class Widget : Window
         this.persist = persist && !args.Contains("--render") && !args.Contains("--render-check");
         var preferences = args.Contains("--render-check") ? new Preferences() : Preferences.Load();
         Monitor = monitor ?? new UsageMonitor(preferences, CreateProviders(grok));
-        if (args.Contains("--compact")) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = true; }
-        if (args.Contains("--cards")) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = false; }
-        if (args.Contains("--island")) Monitor.Preferences.Island = true;
+        Monitor.Preferences.Layout = WidgetLayouts.FromArguments(args, Monitor.Preferences.Layout);
         if (args.Contains("--render-check"))
             foreach (var p in Monitor.Providers) Monitor.States[p.Id].Reading = Fixture(p);
         initialPosition = Monitor.Preferences.X is { } savedX && Monitor.Preferences.Y is { } savedY ? new PixelPoint(savedX, savedY) : null;
@@ -100,7 +98,7 @@ internal sealed class Widget : Window
             ClampPosition();
             SavePosition();
             if (OperatingSystem.IsWindows() && TryGetPlatformHandle()?.HandleDescriptor == "HWND")
-                taskbarOverlay = new WindowsTaskbarOverlay(this, () => !closing && Monitor.Preferences.Island);
+                taskbarOverlay = new WindowsTaskbarOverlay(this, () => !closing && Monitor.Preferences.Layout.IsIsland());
             taskbarOverlay?.EnsureAboveTaskbar();
             // Injected monitors are driven by the caller (including UI regression tests).
             if (monitor != null) return;
@@ -159,9 +157,11 @@ internal sealed class Widget : Window
         var choices = new List<MenuChoice> {
             new("Show / hide widget", ToggleVisible), new("Refresh now", () => _ = RefreshUsage()),
             new("Subscriptions", Children: Monitor.Providers.Select(p => new MenuChoice(p.Name, () => SetProvider(p, !prefs.IsEnabled(p)), prefs.IsEnabled(p), !prefs.IsEnabled(p) || Monitor.Enabled.Length > 1)).ToArray()),
-            new("Connections", Children: Monitor.Providers.Where(p => ConnectionDialog.Supports(p.Id)).Select(p => new MenuChoice(p.Name, () => _ = ConnectProvider(p))).ToArray()),
+            new("Connections", Enabled: persist, Children: Monitor.Providers.Where(p => ConnectionDialog.Supports(p.Id)).Select(p => new MenuChoice(p.Name, () => _ = ConnectProvider(p))).ToArray()),
             new($"Provider page {Surface.Page + 1}/{Surface.PageCount}", Children: [new("Previous providers", () => ChangePage(-1), Enabled: Surface.PageCount > 1), new("Next providers", () => ChangePage(1), Enabled: Surface.PageCount > 1)]),
-            new("Layout", Children: [new("Round badges (compact)", () => SetCompact(true), prefs.Compact && !prefs.Island, Radio: true), new("Detailed cards", () => SetCompact(false), !prefs.Compact && !prefs.Island, Radio: true), new("Island bar", () => SetIsland(), prefs.Island && !prefs.CompactIsland, Radio: true), new("Compact island", () => SetIsland(true), prefs.Island && prefs.CompactIsland, Radio: true)]),
+            new("Layout", Children: WidgetLayouts.MenuOrder.SelectMany(layout =>
+                (layout == WidgetLayout.IslandBar ? new[] { new MenuChoice("-") } : []).Append(
+                    new MenuChoice(layout.Title(), () => SetLayout(layout), prefs.Layout == layout, Radio: true))).ToArray()),
             new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
@@ -170,12 +170,12 @@ internal sealed class Widget : Window
                 try { PlatformServices.SetStartup(!PlatformServices.StartupEnabled()); Surface.Notice = null; }
                 catch (Exception ex) { Surface.Notice = "Could not change startup: " + ex.Message; _ = ShowError(Surface.Notice); }
                 BuildMenus(); UpdateDisplay();
-            }, PlatformServices.StartupEnabled()),
+            }, PlatformServices.StartupEnabled(), Enabled: persist),
             new("-")
         };
         choices.AddRange(Monitor.Enabled.Select(p => new MenuChoice($"Open {p.Name} usage", () => {
             try { PlatformServices.OpenUrl(p.UsageUrl); } catch (Exception ex) { _ = ShowError("Could not open the browser: " + ex.Message); }
-        })));
+        }, Enabled: persist)));
         choices.AddRange([new("Reset position", () => { ResetPosition(); Restore(); }), new("-"),
             new("Updates", Children: [
                 new("Automatic updates", () => { prefs.AutomaticUpdates = !prefs.AutomaticUpdates; SavePreferences(); BuildMenus(); }, prefs.AutomaticUpdates),
@@ -267,7 +267,9 @@ internal sealed class Widget : Window
     }
     internal void SetProvider(ProviderDefinition provider, bool enabled)
     {
+        var anchor = Monitor.Preferences.Layout.IsAdditional() ? Surface.VisibleProviders.FirstOrDefault()?.Id : null;
         if (!Monitor.SetEnabled(provider, enabled)) return;
+        Surface.ShowProvider(anchor);
         ApplyLayout(true); SavePreferences(); BuildMenus();
         if (!args.Contains("--render-check")) _ = RefreshUsage();
     }
@@ -282,12 +284,14 @@ internal sealed class Widget : Window
         ApplyTheme(); Surface.ReloadLogos(); SavePreferences(); BuildMenus(); UpdateDisplay();
     }
     internal void SetPercentage(bool used) { Monitor.Preferences.ShowUsed = used; SavePreferences(); BuildMenus(); UpdateDisplay(); }
-    internal void SetCompact(bool compact) { Monitor.Preferences.Island = false; Monitor.Preferences.Compact = compact; ApplyLayout(true); SavePreferences(); BuildMenus(); UpdateDisplay(); }
-    internal void SetIsland(bool compact = false)
+    internal void SetCompact(bool compact) => SetLayout(compact ? WidgetLayout.RoundBadges : WidgetLayout.DetailedCards);
+    internal void SetIsland(bool compact = false) => SetLayout(compact ? WidgetLayout.CompactIsland : WidgetLayout.IslandBar);
+    internal void SetLayout(WidgetLayout layout)
     {
-        Monitor.Preferences.Island = true;
-        Monitor.Preferences.CompactIsland = compact;
-        ApplyLayout(false);
+        var anchor = layout.IsAdditional() || Monitor.Preferences.Layout.IsAdditional() ? Surface.VisibleProviders.FirstOrDefault()?.Id : null;
+        Monitor.Preferences.Layout = layout;
+        Surface.ShowProvider(anchor);
+        ApplyLayout(!layout.IsIsland() && !layout.IsAdditional());
         SavePreferences(); BuildMenus(); UpdateDisplay();
     }
     private void ApplyOpacity() => Surface.Opacity = Math.Clamp(Monitor.Preferences.Opacity, 0.5, 1);
@@ -297,8 +301,8 @@ internal sealed class Widget : Window
         var size = Surface.DesiredWidgetSize;
         Width = Surface.Width = size.Width; Height = Surface.Height = size.Height;
         ApplyOpacity();
-        if (keepBottomRight && double.IsFinite(oldWidth) && double.IsFinite(oldHeight))
-            Position = Monitor.Preferences.Island
+        if (keepBottomRight && !Monitor.Preferences.Layout.IsAdditional() && double.IsFinite(oldWidth) && double.IsFinite(oldHeight))
+            Position = Monitor.Preferences.Layout.IsIsland()
                 ? new(Position.X + (int)((oldWidth - Width) * RenderScaling / 2), Position.Y)
                 : new(Position.X + (int)((oldWidth - Width) * RenderScaling), Position.Y + (int)((oldHeight - Height) * RenderScaling));
         ClampPosition();
@@ -308,9 +312,20 @@ internal sealed class Widget : Window
     {
         if (!e.GetCurrentPoint(Surface).Properties.IsLeftButtonPressed) return;
         var p = e.GetPosition(Surface);
-        if (Surface.IsPager(p)) { ChangePage(1); e.Handled = true; return; }
-        if (Monitor.Preferences.Island) { StartDrag(e); }
-        else if (Monitor.Preferences.Compact)
+        if (Surface.PageDirectionAt(p) is var direction && direction != 0) { ChangePage(direction); e.Handled = true; return; }
+        if (Monitor.Preferences.Layout.IsAdditional())
+        {
+            switch (Surface.HeaderActionAt(p))
+            {
+                case SurfaceAction.Menu: Surface.ContextMenu?.Open(Surface); break;
+                case SurfaceAction.Hide: Hide(); WriteHealth(); break;
+                case SurfaceAction.Refresh: await RefreshUsage(); break;
+                default: StartDrag(e); break;
+            }
+            e.Handled = true;
+        }
+        else if (Monitor.Preferences.Layout.IsIsland()) { StartDrag(e); }
+        else if (Monitor.Preferences.Layout == WidgetLayout.RoundBadges)
         {
             if (Surface.ProviderAt(p) == null) return;
             if (e.ClickCount == 2) SetCompact(false); else StartDrag(e);
@@ -333,13 +348,18 @@ internal sealed class Widget : Window
     }
     private void UpdateTooltip(Point point)
     {
-        if (Surface.IsPager(point)) { ToolTip.SetTip(Surface, $"Next providers · page {Surface.Page + 1}/{Surface.PageCount} · scroll to switch pages"); lastTip = ""; return; }
+        if (Surface.PageDirectionAt(point) is var direction && direction != 0) { ToolTip.SetTip(Surface, $"{(direction < 0 ? "Previous" : "Next")} providers · page {Surface.Page + 1}/{Surface.PageCount} · scroll to switch pages"); lastTip = ""; return; }
         var p = Surface.ProviderAt(point);
         var text = p != null ? Details(p) : Surface.Notice ?? "Drag to move · right-click for settings";
-        if (!Monitor.Preferences.Island && !Monitor.Preferences.Compact && point.Y < 44)
+        if (Monitor.Preferences.Layout.IsAdditional()) text = Surface.HeaderActionAt(point) switch
+        {
+            SurfaceAction.Menu => "Settings and Exit", SurfaceAction.Hide => "Hide to tray / menu bar",
+            SurfaceAction.Refresh => "Refresh now", _ => text
+        };
+        if (Monitor.Preferences.Layout == WidgetLayout.DetailedCards && point.Y < 44)
             text = point.X >= 282 ? "Settings and Exit" : point.X >= 248 ? "Hide to tray / menu bar" : point.X >= 215 ? "Refresh now" : "Drag to move";
-        if (Monitor.Preferences.Island) text += "\n\nDrag to move · right-click for settings";
-        else if (Monitor.Preferences.Compact) text += "\n\nDrag to move · double-click for cards · right-click for settings";
+        if (Monitor.Preferences.Layout.IsIsland() || Monitor.Preferences.Layout.IsAdditional()) text += "\n\nDrag to move · right-click for settings";
+        else if (Monitor.Preferences.Layout == WidgetLayout.RoundBadges) text += "\n\nDrag to move · double-click for cards · right-click for settings";
         if (lastTip != text) { lastTip = text; ToolTip.SetTip(Surface, text); }
     }
     internal string Details(ProviderDefinition provider)
@@ -374,7 +394,8 @@ internal sealed class Widget : Window
     private void UpdateDisplay()
     {
         if (closing) return;
-        if (Monitor.Preferences.Island && Monitor.Preferences.CompactIsland && Width != Surface.DesiredWidgetSize.Width) ApplyLayout(false);
+        if ((Monitor.Preferences.Layout == WidgetLayout.CompactIsland || Monitor.Preferences.Layout.IsAdditional())
+            && (Width != Surface.DesiredWidgetSize.Width || Height != Surface.DesiredWidgetSize.Height)) ApplyLayout(false);
         Surface.InvalidateVisual();
         var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : "unavailable") ?? ["unavailable"])));
         if (tray != null) tray.ToolTipText = summary.Length > 127 ? summary[..124] + "…" : summary;
@@ -392,7 +413,7 @@ internal sealed class Widget : Window
     {
         var screen = Screens.ScreenFromPoint(requested) ?? Screens.ScreenFromWindow(this) ?? Screens.Primary;
         PixelRect? bar = null;
-        if (Monitor.Preferences.Island)
+        if (Monitor.Preferences.Layout.IsIsland())
         {
             if (OperatingSystem.IsWindows() && TryGetPlatformHandle()?.HandleDescriptor == "HWND" && screen != null)
                 bar = WindowsTaskbarOverlay.TaskbarOn(screen.Bounds);
@@ -406,7 +427,7 @@ internal sealed class Widget : Window
             if (bar is { } target) requested = ScreenPlacement.AlignTaskbar(requested, height, screen!.Scaling, target);
         }
         return ScreenPlacement.Constrain(requested, new Size(Width, Height), Screens.All.Select(display =>
-            (PositionArea(display.Bounds, display.WorkingArea, Monitor.Preferences.Island, OperatingSystem.IsWindows()), display.Scaling)));
+            (PositionArea(display.Bounds, display.WorkingArea, Monitor.Preferences.Layout.IsIsland(), OperatingSystem.IsWindows()), display.Scaling)));
     }
     private void ClampPosition()
     {
@@ -418,7 +439,7 @@ internal sealed class Widget : Window
     private void ResetPosition()
     {
         if ((Screens.ScreenFromWindow(this) ?? Screens.Primary)?.WorkingArea is { } a)
-            Position = Monitor.Preferences.Island
+            Position = Monitor.Preferences.Layout.IsIsland()
                 ? new(a.X + (a.Width - (int)(Width * RenderScaling)) / 2, a.Y + (int)(8 * RenderScaling))
                 : new(a.Right - (int)(Width * RenderScaling) - 18, a.Bottom - (int)(Height * RenderScaling) - 18);
         ClampPosition();
@@ -433,7 +454,7 @@ internal sealed class Widget : Window
         {
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
-                Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Island ? Monitor.Preferences.CompactIsland ? "compact-island" : "island" : Monitor.Preferences.Compact ? "round" : "cards", WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
+                Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Layout switch { WidgetLayout.DetailedCards => "cards", WidgetLayout.RoundBadges => "round", _ => Monitor.Preferences.Layout.Id() }, WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
                 Updates = updates?.Status,
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
@@ -471,9 +492,20 @@ internal sealed class Widget : Window
                 }
             }
             foreach (var p in Monitor.Providers) { Monitor.SetEnabled(p, true); Monitor.States[p.Id].Reading = Fixture(p); }
+            foreach (var dark in new[] { false, true })
+            {
+                SetDarkMode(dark);
+                foreach (var layout in WidgetLayouts.MenuOrder)
+                {
+                    SetLayout(layout); Surface.ShowProvider(Monitor.Enabled[0].Id); SetPercentage(false);
+                    await Task.Delay(100);
+                    SaveRender($"render-{layout.Id()}{(dark ? "-dark" : "")}.png");
+                }
+            }
+            SetDarkMode(false);
             SetPercentage(false); SetCompact(false); await Task.Delay(150); SaveRender("cards-after-switch.png");
             SetCompact(true); Hide(); Restore(); await Task.Delay(150); SaveRender("widget-preview.png");
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), "PASS: native single/both-provider layout, used/remaining rendering, cards/badge switching and hide/restore.\n");
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), "PASS: all nine layouts in light/dark, native single-provider used/remaining rendering, layout switching and hide/restore.\n");
             Quit();
         }
         catch (Exception ex) { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-error.txt"), ex.ToString()); PrepareExit(); (Application.Current!.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(1); }
