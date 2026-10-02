@@ -18,11 +18,16 @@ internal sealed class Widget : Window
     internal readonly ProviderSurface Surface;
     private readonly GrokProvider grok = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer islandCollapseTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private readonly TrayIcon? tray;
     private readonly bool persist;
     private readonly string[] args;
     private bool closing, initialized, clamping;
     private PixelPoint? dragOffset;
+    private PixelPoint? islandHoverOrigin, lastIslandPointer;
+    private double islandHoverCenter;
+    internal bool IslandCollapsePending => islandCollapseTimer.IsEnabled;
+    private bool changingLayout;
     private WindowsTaskbarOverlay? taskbarOverlay;
     private AutomaticUpdates? updates;
     private readonly PixelPoint? initialPosition;
@@ -86,9 +91,9 @@ internal sealed class Widget : Window
         ApplyLayout(false);
         BuildMenus();
         PositionChanged += (_, _) => { if (initialized) ClampPosition(); SavePosition(); taskbarOverlay?.EnsureAboveTaskbar(); };
-        Closing += (_, e) => { if (!closing) { e.Cancel = true; Hide(); WriteHealth(); } };
+        Closing += (_, e) => { if (!closing) { e.Cancel = true; SetAdaptiveHover(null); Hide(); WriteHealth(); } };
         Screens.Changed += OnScreensChanged;
-        ScalingChanged += (_, _) => { if (initialized) ClampPosition(); };
+        ScalingChanged += (_, _) => { if (initialized) { SetAdaptiveHover(null); ClampPosition(); } };
         Closed += (_, _) => { Screens.Changed -= OnScreensChanged; Surface.Dispose(); };
         Opened += async (_, _) =>
         {
@@ -130,6 +135,8 @@ internal sealed class Widget : Window
             if (!Monitor.Busy && DateTimeOffset.Now >= nextRefresh) await RefreshUsage();
         };
         Surface.PointerPressed += OnSurfacePressed;
+        islandCollapseTimer.Tick += (_, _) => CollapseAdaptiveHover();
+        Surface.PointerExited += (_, _) => ScheduleIslandCollapse();
         Surface.PointerWheelChanged += (_, e) => { if (Surface.PageCount > 1) { ChangePage(e.Delta.Y < 0 ? 1 : -1); e.Handled = true; } };
         Surface.PointerMoved += (_, e) =>
         {
@@ -139,13 +146,24 @@ internal sealed class Widget : Window
                 Position = ConstrainPosition(new(pointer.X - offset.X, pointer.Y - offset.Y));
                 e.Handled = true;
             }
-            else UpdateTooltip(e.GetPosition(Surface));
+            else
+            {
+                var point = e.GetPosition(Surface);
+                var screenPoint = Surface.PointToScreen(point);
+                // A resize can synthesize pointer events without actual mouse movement.
+                if (screenPoint != lastIslandPointer)
+                {
+                    lastIslandPointer = screenPoint;
+                    UpdateIslandHover(point);
+                }
+                UpdateTooltip(Surface.PointToClient(screenPoint));
+            }
         };
-        Surface.PointerReleased += (_, e) => { dragOffset = null; e.Pointer.Capture(null); ClampPosition(); SavePosition(); };
-        Surface.PointerCaptureLost += (_, _) => { dragOffset = null; ClampPosition(); SavePosition(); };
+        Surface.PointerReleased += (_, e) => { EndDrag(); e.Pointer.Capture(null); UpdateIslandHover(e.GetPosition(Surface)); };
+        Surface.PointerCaptureLost += (_, _) => EndDrag();
         KeyDown += async (_, e) =>
         {
-            if (e.Key == Key.Escape || e.Key == Key.F4 && e.KeyModifiers.HasFlag(KeyModifiers.Alt)) { Hide(); WriteHealth(); e.Handled = true; }
+            if (e.Key == Key.Escape || e.Key == Key.F4 && e.KeyModifiers.HasFlag(KeyModifiers.Alt)) { SetAdaptiveHover(null); Hide(); WriteHealth(); e.Handled = true; }
             else if (e.Key == Key.F5) { await RefreshUsage(); e.Handled = true; }
             else if (e.Key == Key.F10 && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { Surface.ContextMenu?.Open(Surface); e.Handled = true; }
         };
@@ -160,8 +178,11 @@ internal sealed class Widget : Window
             new("Connections", Enabled: persist, Children: Monitor.Providers.Where(p => ConnectionDialog.Supports(p.Id)).Select(p => new MenuChoice(p.Name, () => _ = ConnectProvider(p))).ToArray()),
             new($"Provider page {Surface.Page + 1}/{Surface.PageCount}", Children: [new("Previous providers", () => ChangePage(-1), Enabled: Surface.PageCount > 1), new("Next providers", () => ChangePage(1), Enabled: Surface.PageCount > 1)]),
             new("Layout", Children: WidgetLayouts.MenuOrder.SelectMany(layout =>
-                (layout == WidgetLayout.IslandBar ? new[] { new MenuChoice("-") } : []).Append(
+                (layout == WidgetLayout.AdaptiveIsland ? new[] { new MenuChoice("-") } : []).Append(
                     new MenuChoice(layout.Title(), () => SetLayout(layout), prefs.Layout == layout, Radio: true))).ToArray()),
+            new("Island style", Enabled: prefs.Layout.IsIsland(), Children: [
+                new("Continuous", () => SetIslandStyle(IslandStyle.Continuous), prefs.IslandStyle == IslandStyle.Continuous, Radio: true),
+                new("Provider pills", () => SetIslandStyle(IslandStyle.ProviderPills), prefs.IslandStyle == IslandStyle.ProviderPills, Radio: true)]),
             new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
@@ -255,6 +276,7 @@ internal sealed class Widget : Window
     }
     internal void ChangePage(int direction)
     {
+        SetAdaptiveHover(null);
         Surface.ChangePage(direction); ApplyLayout(true); BuildMenus(); UpdateDisplay();
     }
     private async Task ConnectProvider(ProviderDefinition provider)
@@ -267,8 +289,13 @@ internal sealed class Widget : Window
     }
     internal void SetProvider(ProviderDefinition provider, bool enabled)
     {
-        var anchor = Monitor.Preferences.Layout.IsAdditional() ? Surface.VisibleProviders.FirstOrDefault()?.Id : null;
-        if (!Monitor.SetEnabled(provider, enabled)) return;
+        SetAdaptiveHover(null);
+        var anchor = Monitor.Preferences.Layout.IsAdditional() || Monitor.Preferences.Layout.IsIsland() ? Surface.VisibleProviders.FirstOrDefault()?.Id : null;
+        bool changed;
+        changingLayout = true;
+        try { changed = Monitor.SetEnabled(provider, enabled); }
+        finally { changingLayout = false; }
+        if (!changed) return;
         Surface.ShowProvider(anchor);
         ApplyLayout(true); SavePreferences(); BuildMenus();
         if (!args.Contains("--render-check")) _ = RefreshUsage();
@@ -286,9 +313,17 @@ internal sealed class Widget : Window
     internal void SetPercentage(bool used) { Monitor.Preferences.ShowUsed = used; SavePreferences(); BuildMenus(); UpdateDisplay(); }
     internal void SetCompact(bool compact) => SetLayout(compact ? WidgetLayout.RoundBadges : WidgetLayout.DetailedCards);
     internal void SetIsland(bool compact = false) => SetLayout(compact ? WidgetLayout.CompactIsland : WidgetLayout.IslandBar);
+    internal void SetIslandStyle(IslandStyle style)
+    {
+        SetAdaptiveHover(null);
+        Monitor.Preferences.IslandStyle = style;
+        if (Monitor.Preferences.Layout.IsIsland()) ApplyLayout(true);
+        SavePreferences(); BuildMenus(); UpdateDisplay();
+    }
     internal void SetLayout(WidgetLayout layout)
     {
-        var anchor = layout.IsAdditional() || Monitor.Preferences.Layout.IsAdditional() ? Surface.VisibleProviders.FirstOrDefault()?.Id : null;
+        SetAdaptiveHover(null);
+        var anchor = Surface.VisibleProviders.FirstOrDefault()?.Id;
         Monitor.Preferences.Layout = layout;
         Surface.ShowProvider(anchor);
         ApplyLayout(!layout.IsIsland() && !layout.IsAdditional());
@@ -297,6 +332,7 @@ internal sealed class Widget : Window
     private void ApplyOpacity() => Surface.Opacity = Math.Clamp(Monitor.Preferences.Opacity, 0.5, 1);
     private void ApplyLayout(bool keepBottomRight)
     {
+        UpdateIslandWidthLimit();
         var oldWidth = Width; var oldHeight = Height;
         var size = Surface.DesiredWidgetSize;
         Width = Surface.Width = size.Width; Height = Surface.Height = size.Height;
@@ -340,11 +376,70 @@ internal sealed class Widget : Window
     }
     private void StartDrag(PointerPressedEventArgs e)
     {
+        islandCollapseTimer.Stop();
         var pointer = Surface.PointToScreen(e.GetPosition(Surface));
         dragOffset = new(pointer.X - Position.X, pointer.Y - Position.Y);
         e.Pointer.Capture(Surface);
         ToolTip.SetIsOpen(Surface, false);
         e.Handled = true;
+    }
+    private void EndDrag()
+    {
+        var wasDragging = dragOffset != null;
+        dragOffset = null; lastIslandPointer = null;
+        if (wasDragging && Monitor.Preferences.Layout.IsIsland()) ApplyLayout(true);
+        if (wasDragging && islandHoverOrigin != null)
+        {
+            islandHoverCenter = Position.X + Width * RenderScaling / 2;
+            islandHoverOrigin = new((int)Math.Round(islandHoverCenter - Surface.CollapsedIslandSize.Width * RenderScaling / 2), Position.Y);
+        }
+        ClampPosition(); SavePosition();
+    }
+    private void UpdateIslandWidthLimit()
+    {
+        if (!Monitor.Preferences.Layout.IsIsland()) return;
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        Surface.IslandWidthLimit = screen == null ? double.PositiveInfinity
+            : PositionArea(screen.Bounds, screen.WorkingArea, true, OperatingSystem.IsWindows()).Width / screen.Scaling;
+    }
+    private void UpdateIslandHover(Point point)
+    {
+        if (dragOffset != null || Monitor.Preferences.Layout != WidgetLayout.AdaptiveIsland) return;
+        if (Surface.ProviderAt(point) is { } provider) { islandCollapseTimer.Stop(); SetAdaptiveHover(provider.Id); }
+        else ScheduleIslandCollapse();
+    }
+    private void ScheduleIslandCollapse()
+    {
+        if (dragOffset == null && Surface.HoveredIslandProviderId != null && !islandCollapseTimer.IsEnabled) islandCollapseTimer.Start();
+    }
+    internal void CollapseAdaptiveHover()
+    {
+        if (dragOffset != null || contextMenu.IsOpen) return;
+        SetAdaptiveHover(null);
+    }
+    internal void SetAdaptiveHover(string? id)
+    {
+        if (dragOffset != null) return;
+        islandCollapseTimer.Stop();
+        var origin = islandHoverOrigin;
+        if (!Surface.SetIslandHover(id)) return;
+        if (Surface.HoveredIslandProviderId != null)
+        {
+            if (origin == null)
+            {
+                islandHoverOrigin = Position;
+                islandHoverCenter = Position.X + Width * RenderScaling / 2;
+            }
+            ApplyLayout(false);
+            Position = ConstrainPosition(new((int)Math.Round(islandHoverCenter - Width * RenderScaling / 2), islandHoverOrigin!.Value.Y));
+        }
+        else
+        {
+            ApplyLayout(false);
+            if (origin != null) Position = ConstrainPosition(origin.Value);
+            islandHoverOrigin = null;
+        }
+        Surface.InvalidateVisual(); SavePosition(); WriteHealth();
     }
     private void UpdateTooltip(Point point)
     {
@@ -394,8 +489,17 @@ internal sealed class Widget : Window
     private void UpdateDisplay()
     {
         if (closing) return;
-        if ((Monitor.Preferences.Layout == WidgetLayout.CompactIsland || Monitor.Preferences.Layout.IsAdditional())
-            && (Width != Surface.DesiredWidgetSize.Width || Height != Surface.DesiredWidgetSize.Height)) ApplyLayout(false);
+        if (!changingLayout && (dragOffset == null || !Monitor.Preferences.Layout.IsIsland())
+            && (Monitor.Preferences.Layout.IsIsland() || Monitor.Preferences.Layout.IsAdditional())
+            && (Width != Surface.DesiredWidgetSize.Width || Height != Surface.DesiredWidgetSize.Height))
+        {
+            if (Surface.HoveredIslandProviderId != null)
+            {
+                ApplyLayout(false);
+                Position = ConstrainPosition(new((int)Math.Round(islandHoverCenter - Width * RenderScaling / 2), islandHoverOrigin!.Value.Y));
+            }
+            else ApplyLayout(Monitor.Preferences.Layout is WidgetLayout.AdaptiveIsland or WidgetLayout.SpotlightIsland);
+        }
         Surface.InvalidateVisual();
         var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : "unavailable") ?? ["unavailable"])));
         if (tray != null) tray.ToolTipText = summary.Length > 127 ? summary[..124] + "…" : summary;
@@ -403,12 +507,12 @@ internal sealed class Widget : Window
         WriteHealth();
     }
     internal void Restore() { ClampPosition(); Show(); Activate(); taskbarOverlay?.EnsureAboveTaskbar(); WriteHealth(); }
-    private void ToggleVisible() { if (IsVisible) { Hide(); WriteHealth(); } else Restore(); }
+    private void ToggleVisible() { if (IsVisible) { SetAdaptiveHover(null); Hide(); WriteHealth(); } else Restore(); }
     // Windows islands may overlap the taskbar. macOS keeps floating windows out
     // of the menu bar and Dock; other layouts retain their desktop-only bounds.
     internal static PixelRect PositionArea(PixelRect bounds, PixelRect workingArea, bool island, bool windows) =>
         island && windows ? bounds : workingArea;
-    private void OnScreensChanged(object? sender, EventArgs e) { if (initialized) ClampPosition(); }
+    private void OnScreensChanged(object? sender, EventArgs e) { if (initialized) { SetAdaptiveHover(null); ApplyLayout(false); } }
     private PixelPoint ConstrainPosition(PixelPoint requested)
     {
         var screen = Screens.ScreenFromPoint(requested) ?? Screens.ScreenFromWindow(this) ?? Screens.Primary;
@@ -438,6 +542,7 @@ internal sealed class Widget : Window
     }
     private void ResetPosition()
     {
+        SetAdaptiveHover(null);
         if ((Screens.ScreenFromWindow(this) ?? Screens.Primary)?.WorkingArea is { } a)
             Position = Monitor.Preferences.Layout.IsIsland()
                 ? new(a.X + (a.Width - (int)(Width * RenderScaling)) / 2, a.Y + (int)(8 * RenderScaling))
@@ -445,7 +550,11 @@ internal sealed class Widget : Window
         ClampPosition();
         SavePosition();
     }
-    private void SavePosition() { Monitor.Preferences.X = Position.X; Monitor.Preferences.Y = Position.Y; SavePreferences(); }
+    private void SavePosition()
+    {
+        var position = islandHoverOrigin ?? Position;
+        Monitor.Preferences.X = position.X; Monitor.Preferences.Y = position.Y; SavePreferences();
+    }
     private void SavePreferences() { if (persist) Monitor.Preferences.Save(); }
     private void WriteHealth()
     {
@@ -455,7 +564,7 @@ internal sealed class Widget : Window
             Directory.CreateDirectory(Preferences.Folder);
             var data = new { Version = Program.AppVersion, Platform = OperatingSystem.IsMacOS() ? "macOS" : "Windows", Updated = DateTimeOffset.Now, ProcessId = Environment.ProcessId,
                 Theme = Monitor.Preferences.DarkMode ? "dark" : "light", Layout = Monitor.Preferences.Layout switch { WidgetLayout.DetailedCards => "cards", WidgetLayout.RoundBadges => "round", _ => Monitor.Preferences.Layout.Id() }, WindowVisible = IsVisible, AlwaysOnTop = Topmost, WindowBounds = new { Left = Position.X, Top = Position.Y, Width, Height },
-                Updates = updates?.Status,
+                IslandStyle = Monitor.Preferences.IslandStyle.ToString(), Updates = updates?.Status,
                 Providers = Monitor.Enabled.ToDictionary(p => p.Id, p => new { Monitor.States[p.Id].Reading, Monitor.States[p.Id].Error }) };
             var path = Path.Combine(Preferences.Folder, "status.json");
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(path + ".tmp", path, true);
@@ -500,12 +609,28 @@ internal sealed class Widget : Window
                     SetLayout(layout); Surface.ShowProvider(Monitor.Enabled[0].Id); SetPercentage(false);
                     await Task.Delay(100);
                     SaveRender($"render-{layout.Id()}{(dark ? "-dark" : "")}.png");
+                    if (layout.IsIsland())
+                    {
+                        foreach (var style in Enum.GetValues<IslandStyle>())
+                        {
+                            SetIslandStyle(style);
+                            var suffix = (style == IslandStyle.ProviderPills ? "-pills" : "") + (dark ? "-dark" : "");
+                            SaveRender($"render-{layout.Id()}{suffix}.png");
+                            if (layout == WidgetLayout.AdaptiveIsland)
+                            {
+                                SetAdaptiveHover(Surface.VisibleProviders[0].Id);
+                                SaveRender($"render-adaptive-island-expanded{suffix}.png");
+                                SetAdaptiveHover(null);
+                            }
+                        }
+                        SetIslandStyle(IslandStyle.Continuous);
+                    }
                 }
             }
             SetDarkMode(false);
             SetPercentage(false); SetCompact(false); await Task.Delay(150); SaveRender("cards-after-switch.png");
             SetCompact(true); Hide(); Restore(); await Task.Delay(150); SaveRender("widget-preview.png");
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), "PASS: all nine layouts in light/dark, native single-provider used/remaining rendering, layout switching and hide/restore.\n");
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-checks.txt"), "PASS: all eleven layouts in light/dark, both island styles, adaptive expansion, native single-provider used/remaining rendering, layout switching and hide/restore.\n");
             Quit();
         }
         catch (Exception ex) { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "render-error.txt"), ex.ToString()); PrepareExit(); (Application.Current!.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(1); }
@@ -513,7 +638,7 @@ internal sealed class Widget : Window
     internal void PrepareExit()
     {
         if (closing) return;
-        SavePosition(); closing = true; updates?.Dispose(); taskbarOverlay?.Dispose(); timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
+        SavePosition(); closing = true; islandCollapseTimer.Stop(); updates?.Dispose(); taskbarOverlay?.Dispose(); timer.Stop(); Monitor.Dispose(); grok.Dispose(); tray?.Dispose();
     }
     internal void Quit() { PrepareExit(); Close(); (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(); }
     internal static string SafeError(Exception ex) => ex switch

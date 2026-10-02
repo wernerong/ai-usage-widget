@@ -43,7 +43,7 @@ internal static class LayoutChecks
             Check(JsonSerializer.Deserialize<Preferences>(json)!.Layout == WidgetLayout.Focus, "explicit layout wins regardless of key order");
         foreach (var value in new[] { "\"FutureLayout\"", "99", "null", "{}" })
             Check(JsonSerializer.Deserialize<Preferences>("{\"Layout\":" + value + ",\"Opacity\":0.7}") is { Layout: WidgetLayout.DetailedCards, Opacity: .7 }, "unknown layout preserves other settings");
-        var flags = new[] { "--cards", "--compact", "--compact-list", "--grid", "--bars", "--focus", "--rail", "--island", "--compact-island" };
+        var flags = new[] { "--cards", "--compact", "--compact-list", "--grid", "--bars", "--focus", "--rail", "--island", "--compact-island", "--adaptive-island", "--spotlight-island" };
         foreach (var (flag, layout) in flags.Zip(Enum.GetValues<WidgetLayout>()))
             Check(WidgetLayouts.FromArguments([flag], WidgetLayout.DetailedCards) == layout, "CLI selects " + layout);
 
@@ -224,7 +224,7 @@ internal static class LayoutChecks
             }
             foreach (var (width, size) in new[] { (40d, 13d), (37d, 13d), (36d, 12d), (35d, 12d) })
                 Check(ProviderSurface.FitText("100%", width, size, true) == "100%", "largest percentage fits without truncation");
-            Console.WriteLine($"PASS: {checks} additional layout checks (migration, nine layouts, counts 1/2/3/4/6/7/13, pages, pointer controls, states, themes, DPI)");
+            Console.WriteLine($"PASS: {checks} additional layout checks (migration, eleven layouts, counts 1/2/3/4/6/7/13, pages, pointer controls, states, themes, DPI)");
         }
         finally { widget.PrepareExit(); widget.Close(); }
     }

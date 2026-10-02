@@ -258,6 +258,7 @@ internal static class UiChecks
             Click("Layout", "Island bar");
             Check(monitor.Preferences.Layout == WidgetLayout.IslandBar && widget.Width > 326, "Detailed island remains available");
             LayoutChecks.Run();
+            IslandChecks.Run();
             Console.WriteLine($"PASS: {count} UI checks (menus, sizing, hit testing, real pixels, transparency, stale state)");
             return 0;
         }

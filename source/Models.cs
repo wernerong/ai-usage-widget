@@ -21,6 +21,7 @@ internal sealed class Preferences : IJsonOnDeserialized
     private WidgetLayout layout;
     private bool hasLayout, legacyCompact, legacyIsland, legacyCompactIsland;
     public WidgetLayout Layout { get => layout; set { layout = value; hasLayout = true; } }
+    public IslandStyle IslandStyle { get; set; } = IslandStyle.Continuous;
     // Read old keys, but never write them. Migration is independent of JSON key order.
     [JsonPropertyName("Compact"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? LegacyCompact { get => null; set => legacyCompact = value == true; }

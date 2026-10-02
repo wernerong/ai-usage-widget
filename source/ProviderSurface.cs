@@ -49,12 +49,10 @@ internal sealed partial class ProviderSurface : Control, IDisposable
         var known = quotas.Where(q => q.Used != null || q.Note == "Unlimited").ToArray();
         return known.Length > 0 ? [known.OrderByDescending(q => q.Used).First()] : [new(p.QuotaLabels[0], null, null)];
     }
-    internal double DisplayIslandWidth(ProviderDefinition p) => Layout == WidgetLayout.CompactIsland
-        ? 30 + CompactQuotas(p).Length * (CompactQuotas(p).Length > 1 ? 62 : 44) : IslandProviderWidth(p);
     private double PagerWidth => PageCount > 1 ? 26 : 0;
-    public Size DesiredWidgetSize => Layout.IsAdditional() ? AdditionalSize : Layout.IsIsland() ? new(24 + VisibleProviders.Sum(DisplayIslandWidth) + PagerWidth, IslandHeight) : Layout == WidgetLayout.RoundBadges ? new(VisibleProviders.Length * 100 - 4 + PagerWidth, 96) : new(320, CardsHeight);
+    public Size DesiredWidgetSize => Layout.IsAdditional() ? AdditionalSize : Layout.IsIsland() ? IslandGeometry().Size : Layout == WidgetLayout.RoundBadges ? new(VisibleProviders.Length * 100 - 4 + PagerWidth, 96) : new(320, CardsHeight);
     internal bool IsPager(Point point) => PageDirectionAt(point) != 0;
-    internal int PageDirectionAt(Point point) => PageCount <= 1 ? 0 : Layout.IsAdditional()
+    internal int PageDirectionAt(Point point) => PageCount <= 1 ? 0 : Layout.IsIsland() ? IslandPagerBounds.Contains(point) ? 1 : 0 : Layout.IsAdditional()
         ? PreviousPageBounds.Contains(point) ? -1 : NextPageBounds.Contains(point) ? 1 : 0
         : LegacyPagerAt(point) ? 1 : 0;
     private bool LegacyPagerAt(Point point) => PageCount > 1 && (Layout.IsIsland() || Layout == WidgetLayout.RoundBadges
@@ -112,7 +110,7 @@ internal sealed partial class ProviderSurface : Control, IDisposable
     {
         base.Render(g);
         if (Layout.IsAdditional()) { RenderAdditional(g); return; }
-        if (Layout.IsIsland()) { Island(g); Pager(g); return; }
+        if (Layout.IsIsland()) { RenderIsland(g); return; }
         if (Layout == WidgetLayout.RoundBadges)
         {
             foreach (var (provider, index) in VisibleProviders.Select((p, i) => (p, i))) Badge(g, provider, index * 100);
@@ -153,57 +151,6 @@ internal sealed partial class ProviderSurface : Control, IDisposable
         if (Text(names, 10, Muted).Width > 172) names = $"{VisibleProviders.Length} providers";
         Txt(g, names, 18, CardsHeight - 17, 10, Muted);
         Txt(g, Notice != null ? "Settings error · hover" : Updating ? "Updating…" : "Updates every minute", 198, CardsHeight - 17, 10, Notice != null ? Amber : Muted);
-    }
-    private void Island(DrawingContext g)
-    {
-        if (Layout == WidgetLayout.CompactIsland) { CompactIsland(g); return; }
-        var center = IslandHeight / 2;
-        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
-        double x = 12;
-        foreach (var p in VisibleProviders)
-        {
-            var state = monitor.States[p.Id];
-            if (x > 12) g.DrawLine(new Pen(Brush(Tone("#E1E4EB", "#414753"))), new(x - 6, center - 11), new(x - 6, center + 11));
-            Logo(g, p, new(x + 2, center - 12, 12, 12));
-            Txt(g, p.Name, x + 19, center - 13, 10, Main, true);
-            var status = state.Stale ? "STALE" : state.Reading == null ? Updating ? "Loading" : "No data" : monitor.Preferences.ShowUsed ? "% used" : "% left";
-            Txt(g, status, x + 2, center + 3, 9, state.Stale || Notice != null ? Amber : Muted);
-            for (var i = 0; i < p.QuotaLabels.Length; i++)
-            {
-                var q = state.Reading?.Quotas.ElementAtOrDefault(i);
-                var value = DisplayPercentage(q);
-                var color = QuotaColor(p.Accent, q, state.Stale);
-                var left = x + IslandNameWidth(p) + i * 64;
-                Txt(g, Label(p.QuotaLabels[i]), left, center - 15, 9, Muted);
-                Txt(g, PercentageText(q), left, center - 4, 14, state.Stale ? Amber : Main, true);
-                Round(g, new(left, center + 14, 48, 2), 1, Tone("#E9EBF0", "#414753"));
-                if (value is > 0) Round(g, new(left, center + 14, 48 * Math.Clamp(value.Value, 0, 100) / 100, 2), 1, color);
-            }
-            x += IslandProviderWidth(p);
-        }
-    }
-    private void CompactIsland(DrawingContext g)
-    {
-        var center = IslandHeight / 2;
-        Round(g, new(0.5, 0.5, DesiredWidgetSize.Width - 1, IslandHeight - 1), 8, Bg, Tone("#CCD2DD", "#454B58"));
-        double x = 12;
-        foreach (var p in VisibleProviders)
-        {
-            var state = monitor.States[p.Id];
-            if (x > 12) g.DrawLine(new Pen(Brush(Tone("#E1E4EB", "#414753"))), new(x - 6, center - 8), new(x - 6, center + 8));
-            Logo(g, p, new(x, center - 8, 16, 16));
-            var left = x + 23;
-            var quotas = CompactQuotas(p);
-            foreach (var q in quotas)
-            {
-                var color = state.Stale || Notice != null ? Amber : Main;
-                if (quotas.Length > 1) { Txt(g, Label(q.Label), left, center - 5, 9, Muted); left += 18; }
-                Txt(g, PercentageText(q), left, center - 9, 13, color, true);
-                if (state.Stale) g.DrawEllipse(Brush(Amber), null, new Point(left + 14, center + 11), 1.5, 1.5);
-                left += 44;
-            }
-            x += DisplayIslandWidth(p);
-        }
     }
     private void Logo(DrawingContext g, ProviderDefinition provider, Rect target)
     {
@@ -273,17 +220,7 @@ internal sealed partial class ProviderSurface : Control, IDisposable
     internal ProviderDefinition? ProviderAt(Point point)
     {
         if (Layout.IsAdditional()) return ProviderRegions.FirstOrDefault(r => r.Bounds.Contains(point)).Provider;
-        if (Layout.IsIsland())
-        {
-            if (point.Y < 3 || point.Y > IslandHeight - 3) return null;
-            double left = 12;
-            foreach (var p in VisibleProviders)
-            {
-                if (point.X >= left && point.X < left + DisplayIslandWidth(p)) return p;
-                left += DisplayIslandWidth(p);
-            }
-            return null;
-        }
+        if (Layout.IsIsland()) return IslandProviderRegions.FirstOrDefault(r => r.Bounds.Deflate(new Thickness(0, 3)).Contains(point)).Provider;
         if (Layout == WidgetLayout.RoundBadges)
         {
             var index = (int)(point.X / 100);

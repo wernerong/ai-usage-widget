@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.12.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.12.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.13.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.13.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.12.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.12.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.12.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.13.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.13.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.13.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -37,7 +37,8 @@ Packages currently use the existing unsigned Windows/ad-hoc-signed Mac distribut
 ## Features
 
 - Select providers independently; choices persist across restarts. New providers are opt-in.
-- Nine layouts: round badges, detailed cards, both island bars, Compact List, Tile Grid, Usage Bars, Focus Mode, and Status Rail. Layout-aware paging ranges from one to eight providers; scroll or use page controls to see more.
+- Eleven layouts: round badges, detailed cards, Compact List, Tile Grid, Usage Bars, Focus Mode, Status Rail, Adaptive Island, Spotlight Island, Island Bar, and Compact Island. Layout-aware paging ranges from one to eight providers; scroll or use page controls to see more.
+- Independent Continuous or Provider Pills style for all four island layouts. Adaptive Island expands only the hovered provider; Spotlight Island shows one provider at a time.
 - Codex five-hour and weekly allowances, extra credits, and available free resets.
 - Grok weekly usage and prepaid credit balance.
 - Grok Bot weekly usage, reset time, and on-demand spending (Windows and macOS desktop login).
@@ -48,7 +49,7 @@ Packages currently use the existing unsigned Windows/ad-hoc-signed Mac distribut
 - Windows tray and macOS menu bar controls; both installers enable launch at login, with an option to disable it.
 - Application icons embedded in the Windows executable and macOS app bundle.
 
-Claude is not yet supported. The provider registry allows future integrations without duplicating the application UI.
+Additional opt-in providers include Claude Code, Cursor CLI, GitHub Copilot, Gemini CLI / Code Assist, Antigravity, Kimi Code, GLM, and MiniMax coding plans. Consumer web-chat quotas are separate. The provider registry allows integrations without duplicating the application UI.
 
 ## Requirements
 
@@ -72,7 +73,7 @@ Use **Dark mode** in the widget or tray/menu bar menu to switch between dark and
 
 ## Layouts
 
-The five additional layouts below are available in **v1.12.0**. Choose from **Layout** in either the widget context menu or tray/menu bar menu. Existing users keep their selected layout when upgrading; the old `Compact`, `Island`, and `CompactIsland` flags migrate to one named `Layout` preference when settings are next saved.
+Choose from **Layout** in either the widget context menu or tray/menu bar menu. Adaptive Island and Spotlight Island are new in **v1.13.0**; the five list/grid/bar/focus/rail layouts arrived in v1.12.0. Existing users keep their selected layout when upgrading; the old `Compact`, `Island`, and `CompactIsland` flags migrate to one named `Layout` preference when settings are next saved.
 
 | Layout | Providers per page | Purpose |
 | --- | ---: | --- |
@@ -83,6 +84,8 @@ The five additional layouts below are available in **v1.12.0**. Choose from **La
 | Usage bars | 6 | 340px-wide quota-centric view with labelled progress bars |
 | Focus mode | 1 | One provider's quotas, resets, free resets, and balance |
 | Status rail | 8 | 200px-wide overview with short quota labels and percentages |
+| Adaptive island | 3 | Compact at rest; hover one provider to expand its details |
+| Spotlight island | 1 | One provider at a time in a slim horizontal island |
 | Island bar | 3 | Slim horizontal strip with progress bars |
 | Compact island | 3 | Minimal horizontal logos and percentages |
 
@@ -101,6 +104,27 @@ The following are actual application renders using synthetic sample readings, no
 | ![Usage bars](docs/layouts/bars.png) | ![Focus mode](docs/layouts/focus.png) |
 | Status rail | Status rail, dark |
 | ![Status rail](docs/layouts/status-rail.png) | ![Status rail dark](docs/layouts/status-rail-dark.png) |
+
+## Adaptive island, Spotlight island, and Island style
+
+Choose **Layout → Adaptive island** for an ambient compact strip. Hover a provider to reveal its name, quota labels and percentages, and nearest reset countdown; other providers keep their compact widths. The same window resizes, without a popup or animation framework. It collapses 220 ms after the pointer leaves. Hover changes pause during dragging. Expansion keeps the resting centre stable where screen boundaries allow, and never saves the temporary expanded position. On narrow displays, optional reset/name space is reduced before percentages; complete details remain in the tooltip.
+
+Choose **Layout → Spotlight island** for a single named provider and its quotas. Use the mouse wheel, right-hand pager, or **Provider page** menu to move between providers. Disabling a provider keeps the page valid. Switching layouts keeps the currently viewed provider in view where possible.
+
+**Island style** is a separate menu beside Layout, enabled only for island layouts:
+
+- **Continuous** uses one shared background and remains the default for existing users.
+- **Provider pills** uses separate neutral capsules with 5px gaps and a separate pager. This changes grouping, not the provider data or page capacity.
+
+The style is saved independently and applies to all four islands, including the original Island Bar and Compact Island. All retain normal 40px height (adapted to the Windows taskbar), sharp provider logos, light/dark mode, opacity, always-on-top, dragging, tooltips, and existing screen constraints. Missing quotas stay `—`, unlimited quotas stay `∞`, and alert colours follow actual consumption even when showing remaining percentages. Long balances and exact reset dates stay in the tooltip.
+
+Actual application renders using synthetic readings:
+
+| State | Light / Continuous | Dark / Provider Pills |
+| --- | --- | --- |
+| Adaptive at rest | ![Adaptive island](docs/layouts/adaptive-island.png) | ![Adaptive pills dark](docs/layouts/adaptive-island-pills-dark.png) |
+| Adaptive, Codex expanded | ![Adaptive expanded](docs/layouts/adaptive-island-expanded.png) | ![Adaptive expanded pills dark](docs/layouts/adaptive-island-expanded-pills-dark.png) |
+| Spotlight | ![Spotlight island](docs/layouts/spotlight-island.png) | ![Spotlight pills dark](docs/layouts/spotlight-island-pills-dark.png) |
 
 ## Compact island
 
@@ -205,10 +229,12 @@ Additional switches:
 - `--version`: prints the version (invoke the DLL with `dotnet` when using a console).
 - `--diagnose`: fetches selected providers and writes `diagnostics.json` beside the executable.
 - `--render --compact` or `--render --cards`: renders live readings to `widget-preview.png` and exits.
-- `--compact-list`, `--grid`, `--bars`, `--focus`, `--rail`, and `--compact-island`: select the corresponding layout; combine with `--render` for a one-shot capture.
-- `--render-check`: exercises native transitions using synthetic data and writes all nine `render-<layout>.png` and `render-<layout>-dark.png` views, plus `render-checks.txt`, beside the executable. User preferences are preserved.
+- `--compact-list`, `--grid`, `--bars`, `--focus`, `--rail`, `--compact-island`, `--adaptive-island`, and `--spotlight-island`: select the corresponding layout; combine with `--render` for a one-shot capture.
+- `--render-check`: exercises native transitions using synthetic data and writes all eleven `render-<layout>.png` and `render-<layout>-dark.png` views, plus `render-checks.txt`, beside the executable. Islands also produce `-pills` variants and Adaptive Island produces deterministic `-expanded` captures in both styles/themes. User preferences are preserved.
 
 Headless UI checks cover 1, 2, 3, 4, 6, 7, and 13 providers, every layout and theme, used/remaining display, real pointer paging and dragging, preference migration, unknown/unlimited/missing/stale readings, long labels, and 100–200% render scaling. CI saves the new light/dark captures as `Layout-proofs-<platform>` artifacts alongside the existing icon proofs.
+
+Island checks additionally exercise the real 220ms dispatcher timer, first/middle/last-provider hover, drag-time hover suppression, repeated edge-clamped expansion/collapse without drift, saved resting positions, independent style persistence, transparent pill gaps, and Spotlight provider removal/navigation.
 
 For a native sample-data preview beside the installed widget, run `dotnet run --project tests/UsageWidget.UiChecks.csproj -c Release -- --native-layout-preview --rail` (or another layout switch). This separate test window never saves preferences, calls a real provider reader, creates a tray icon, or starts automatic updates. Connection, startup, and external usage-link actions are disabled in non-persistent previews. Use its context menu → **Exit** when finished.
 

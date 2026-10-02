@@ -4,6 +4,15 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-03
+
+- Add Adaptive Island: compact at rest, with only the hovered provider expanding to show its name, quotas, and nearest reset. Collapse after a 220 ms exit delay; keep dragging independent of hover changes.
+- Add Spotlight Island: one provider per page in a slim horizontal island, with mouse-wheel, pager, and menu navigation.
+- Add the separate, persisted Island Style setting: Continuous or Provider Pills. Both styles work with Adaptive Island, Spotlight Island, Island Bar, and Compact Island; existing users retain their layout and default to Continuous.
+- Share island geometry between rendering, provider hit targets, paging, and dynamic sizing. Keep hover resizing centre-anchored and screen-clamped without changing the saved resting position; preserve Windows taskbar placement and macOS usable-desktop bounds.
+- Preserve sharp provider logos, full tooltips, used/remaining display, consumption-based alert colours, and explicit missing/unlimited/stale states. Provider readers, authentication, and update behaviour are unchanged.
+- Add island-specific regression checks and light/dark render proofs covering both styles, deterministic hover, delayed collapse, dragging, edge anchoring, paging, preference migration, and mixed display scales.
+
 ## [1.12.0] - 2026-10-02
 
 - Add Compact List, Tile Grid, Usage Bars, Focus Mode, and Status Rail alongside all four existing layouts.
