@@ -9,6 +9,13 @@ using UsageWidget;
 internal static class IconAssets
 {
     internal static readonly int[] IconSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
+    internal static void GenerateCodex(string assets)
+    {
+        using var image = Raster(new CodexArtwork(), 512, 1);
+        image.Save(Path.Combine(assets, "codex.png"));
+        Console.WriteLine("Generated Codex terminal mark PNG from the provider vector.");
+    }
+
     internal static void Generate(string assets)
     {
         Directory.CreateDirectory(Path.Combine(assets, "AppIcon.iconset"));
@@ -47,6 +54,12 @@ internal static class IconAssets
         control.Measure(new(size, size)); control.Arrange(new(0, 0, size, size));
         var image = new RenderTargetBitmap(new PixelSize((int)Math.Round(size * scale), (int)Math.Round(size * scale)), new(96 * scale, 96 * scale));
         image.Render(control); return image;
+    }
+
+    private sealed class CodexArtwork : Control
+    {
+        private readonly VectorIcon icon = new("codex");
+        public override void Render(DrawingContext context) => icon.Draw(context, new Rect(Bounds.Size), Brushes.Black);
     }
 
     private sealed class Artwork(bool tray) : Control

@@ -4,6 +4,12 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-10-03
+
+- Replace the ChatGPT/OpenAI knot used for Codex with the dedicated Codex terminal mark in every layout, island style, and theme. Keep native-scale vector rendering for sharp Windows and Mac icons.
+- Refresh the legacy Codex PNG and layout screenshots, document the pinned artwork source, and add regression checks for the terminal symbol and transparent counters.
+- Provider readers, authentication, preferences, the widget's own app icon, and automatic-update behaviour are unchanged.
+
 ## [1.13.0] - 2026-10-03
 
 - Add Adaptive Island: compact at rest, with only the hovered provider expanding to show its name, quotas, and nearest reset. Collapse after a 220 ms exit delay; keep dragging independent of hover changes.

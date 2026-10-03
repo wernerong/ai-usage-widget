@@ -37,6 +37,23 @@ internal static class IconChecks
             }
         }
         string[] providers = ["codex", "grok", "claude", "cursor", "githubcopilot", "gemini", "antigravity", "kimi", "zai", "minimax"];
+        using (var stream = AssetLoader.Open(new Uri("avares://AIUsageWidget/Assets/codex.svg")))
+        {
+            var root = System.Xml.Linq.XDocument.Load(stream).Root!;
+            Check(root.Elements().Single(e => e.Name.LocalName == "title").Value == "Codex", "Codex uses dedicated artwork, not the OpenAI asset");
+        }
+        using (var codex = IconAssets.Raster(new Logo("codex"), 120, 1))
+        {
+            var buffer = Marshal.AllocHGlobal(120 * 120 * 4);
+            try
+            {
+                codex.CopyPixels(new PixelRect(codex.PixelSize), buffer, 120 * 120 * 4, 120 * 4);
+                byte Alpha(int x, int y) => Marshal.ReadByte(buffer, (y * 120 + x) * 4 + 3);
+                Check(Alpha(60, 20) > 240 && Alpha(60, 60) > 240, "Codex has a solid silhouette instead of the ChatGPT knot");
+                Check(Alpha(41, 59) < 20 && Alpha(75, 77) < 20, "Codex terminal chevron and underscore remain transparent");
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
         foreach (var scale in new[] { 1d, 1.25, 1.5, 2, 3 })
         foreach (var size in new[] { 12, 16, 17 })
         foreach (var name in providers)

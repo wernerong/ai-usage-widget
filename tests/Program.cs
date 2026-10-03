@@ -21,6 +21,12 @@ internal static class UiChecks
             IconAssets.Generate(Path.GetFullPath(assets));
             return 0;
         }
+        if (args is ["--generate-codex-icon", var codexAssets])
+        {
+            AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+            IconAssets.GenerateCodex(Path.GetFullPath(codexAssets));
+            return 0;
+        }
         GrokBotChecks.Run().GetAwaiter().GetResult();
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
         AdditionalProviderChecks.Run().GetAwaiter().GetResult();
