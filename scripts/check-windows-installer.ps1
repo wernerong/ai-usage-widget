@@ -26,6 +26,8 @@ Get-Content (Join-Path $destination 'current\checks.txt')
 $updaterCheck = Start-Process -FilePath $executable -ArgumentList '--verify-update-install' -WindowStyle Hidden -Wait -PassThru
 if ($updaterCheck.ExitCode -ne 0) { throw 'Installed updater is missing.' }
 if (!(Test-Path (Join-Path $destination 'current/AIUsageWidget-Copilot-VSCode.vsix'))) { throw 'Bundled Copilot connection is missing.' }
+$connectionCheck = Start-Process -FilePath $executable -ArgumentList '--verify-copilot-package' -WindowStyle Hidden -Wait -PassThru
+if ($connectionCheck.ExitCode -ne 0) { throw 'The installed widget cannot locate its Copilot connection.' }
 Run-Setup
 $uninstaller = Join-Path $destination 'unins000.exe'
 $remove = Start-Process -FilePath $uninstaller -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -WindowStyle Hidden -Wait -PassThru

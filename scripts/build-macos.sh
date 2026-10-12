@@ -20,7 +20,7 @@ chmod +x "$app/Contents/MacOS/AIUsageWidget"
 # instead (Apple TN2206); keep relative links for the .NET host and resolver.
 managed="$app/Contents/Resources/managed"
 mkdir -p "$managed"
-for file in "$app/Contents/MacOS/"*.dll "$app/Contents/MacOS/"*.json "$app/Contents/MacOS/"*.pdb; do
+for file in "$app/Contents/MacOS/"*.dll "$app/Contents/MacOS/"*.json "$app/Contents/MacOS/"*.pdb "$app/Contents/MacOS/"*.vsix; do
     [[ -f "$file" ]] || continue
     name="$(basename "$file")"
     mv "$file" "$managed/$name"

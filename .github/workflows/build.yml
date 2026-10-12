@@ -114,6 +114,7 @@ jobs:
           "$executable" --version
           "$executable" --self-test
           "$executable" --verify-update-install
+          "$executable" --verify-copilot-package
           test -s "$HOME/Applications/AI Usage Widget.app/Contents/MacOS/AIUsageWidget-Copilot-VSCode.vsix"
           installer -pkg "$package" -target CurrentUserHomeDirectory
           codesign --verify --deep --strict "$HOME/Applications/AI Usage Widget.app"
