@@ -26,6 +26,9 @@ internal static class CopilotBusinessChecks
         var free = CopilotProvider.Parse(Data("""{"token_based_billing":true,"copilot_plan":"free","quota_snapshots":{"premium_interactions":{"entitlement":0,"percent_remaining":0},"chat":{"entitlement":100,"percent_remaining":60}}}"""));
         Check(free.Quotas[0].Used == 40 && free.Quotas[0].Status == null, "Free chat credits are not blocked by an unallocated premium category");
         var id = Guid.NewGuid().ToString(); var now = DateTimeOffset.UtcNow;
+        Check(CopilotVSCode.PairingId(Data(JsonSerializer.Serialize(new { Schema = 1, Mode = "vscode", Id = id }))) == id, "Widget retries preserve the in-progress VS Code pairing");
+        Check(CopilotVSCode.PairingId(Data(JsonSerializer.Serialize(new { Schema = 1, Mode = "direct", Id = id }))) != id, "Switching from CLI creates a new VS Code pairing");
+        Check(Guid.TryParse(CopilotVSCode.PairingId(Data("""{"Schema":1,"Mode":"vscode","Id":"invalid"}""")), out _), "Invalid pairing is replaced with a valid ID");
         var envelope = JsonSerializer.Serialize(new { Schema = 1, ConnectionId = id, Account = "work-example", Host = "github.com", Fetched = now.AddMinutes(-8), Usage = Data(capped) });
         var bridged = CopilotVSCode.ParseSnapshot(Data(envelope), id, now);
         Check(bridged.Fetched == now.AddMinutes(-8) && bridged.Quotas[0].Note!.Contains("work-example"), "Closed VS Code keeps original freshness and account identity");

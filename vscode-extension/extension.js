@@ -2,18 +2,23 @@
 const vscode = require('vscode');
 const { Connection } = require('./connection');
 const { widgetFolder } = require('./usage');
+const diagnostics = require('./diagnostics');
 
 function activate(context) {
   let folder;
   try { folder = widgetFolder(); } catch { return; }
-  const connection = new Connection(vscode, context, folder);
+  const output = vscode.window.createOutputChannel('AI Usage Widget — Copilot');
+  const connection = new Connection(vscode, context, folder, fetch, line => output.appendLine(line));
   async function connect(id) {
     try {
       if (await connection.connect(id)) await vscode.window.showInformationMessage('Copilot usage is connected to AI Usage Widget. Keep VS Code open for live updates.');
-    } catch { await vscode.window.showWarningMessage('Copilot connection was not completed. Choose your work GitHub account and approve access in VS Code, then try again.'); }
+    } catch (error) {
+      if (await vscode.window.showWarningMessage(diagnostics.message(error), 'Show details') === 'Show details') output.show();
+    }
   }
   const timer = setInterval(() => { connection.refresh().catch(() => {}); }, 60000);
   context.subscriptions.push(
+    output,
     vscode.commands.registerCommand('aiUsageWidget.connectCopilot', () => connect()),
     vscode.commands.registerCommand('aiUsageWidget.refreshCopilot', () => connection.refresh(true)),
     vscode.commands.registerCommand('aiUsageWidget.disconnectCopilot', () => connection.disconnect()),

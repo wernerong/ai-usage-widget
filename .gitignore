@@ -8,6 +8,7 @@ app/
 *.vsix
 copilot-connection.json
 copilot-vscode-usage.json
+copilot-vscode-diagnostics.json
 copilot-extension-version.txt
 *.user
 

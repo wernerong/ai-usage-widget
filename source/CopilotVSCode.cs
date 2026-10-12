@@ -17,6 +17,9 @@ internal static class CopilotVSCode
         File.WriteAllText(ConnectionPath + ".tmp", JsonSerializer.Serialize(new { Schema = 1, Mode = mode, Id = id ?? Guid.NewGuid().ToString() }));
         File.Move(ConnectionPath + ".tmp", ConnectionPath, true);
     }
+    internal static string PairingId(JsonElement choice) => Json.Num(choice, "Schema") == 1 &&
+        Json.Str(choice, "Mode") == "vscode" && Guid.TryParse(Json.Str(choice, "Id"), out var id)
+        ? id.ToString() : Guid.NewGuid().ToString();
     internal static async Task<Reading?> Read(CancellationToken ct)
     {
         var choice = await ProviderApi.ReadJson(ConnectionPath, ct);
@@ -111,7 +114,7 @@ internal static class CopilotVSCode
     internal static async Task InstallAndConnect(CancellationToken ct)
     {
         await InstallPackage(ct);
-        var id = Guid.NewGuid().ToString();
+        var id = PairingId(await ProviderApi.ReadJson(ConnectionPath, ct));
         SelectSource("vscode", id);
         PlatformServices.OpenUrl($"vscode://{ExtensionId}/connect?id={id}");
     }

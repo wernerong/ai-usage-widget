@@ -6,6 +6,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { Connection } = require('../connection');
 const usage = require('../usage');
+const diagnostics = require('../diagnostics');
 
 test('Bundled extension and widget releases use the same version', async () => {
   const project = await fs.readFile(path.join(__dirname, '..', '..', 'source', 'UsageWidget.csproj'), 'utf8');
@@ -102,4 +103,85 @@ test('A disconnect during an in-flight request cannot resurrect usage or access 
   await f.controller.disconnect(); finish(); await pending;
   assert.equal((await usage.readJson(f.controller.snapshotPath)).Error, 'disconnected');
   assert.equal(f.context.globalState.get('connection'), undefined);
+});
+
+test('A passive scope failure still reaches explicit read-only consent and never records its raw error', async t => {
+  const f = await fixture(t);
+  let approved = false;
+  f.vscode.authentication.getSession = async (_provider, requested, options) => {
+    f.calls.push(options);
+    if (approved) return f.session;
+    if (options.silent) throw new Error('private-error-fixture ' + f.session.accessToken);
+    assert.deepEqual(requested, ['read:user']);
+    assert.ok(options.createIfNone.detail.includes('only usage values'));
+    assert.equal(options.silent, undefined);
+    approved = true;
+    return f.session;
+  };
+  assert.equal(await f.controller.connect(), true);
+  assert.equal(f.count(), 1);
+  const records = await Promise.all((await fs.readdir(f.folder)).map(file => fs.readFile(path.join(f.folder, file), 'utf8')));
+  assert.ok(records.every(record => !record.includes('private-error-fixture') && !record.includes(f.session.accessToken)));
+});
+
+test('Declined VS Code consent reports the specific next action without requesting again', async t => {
+  const f = await fixture(t);
+  let prompts = 0;
+  f.vscode.authentication.getSession = async (_provider, _scopes, options) => {
+    if (options.silent) return undefined;
+    prompts++; throw new Error('User did not consent to login.');
+  };
+  await assert.rejects(f.controller.connect(), error => error.message === 'consent_required' && error.stage === 'sign_in' && diagnostics.message(error).includes('choose Allow'));
+  assert.equal(prompts, 1);
+  assert.equal(f.count(), 0);
+  assert.equal((await usage.readJson(path.join(f.folder, 'copilot-vscode-diagnostics.json'))).Code, 'consent_required');
+  assert.equal(await usage.readJson(f.controller.snapshotPath), undefined);
+});
+
+test('A stale URI fails before asking for account access', async t => {
+  const f = await fixture(t);
+  const currentId = require('node:crypto').randomUUID();
+  await usage.atomicJson(f.controller.configPath, { Schema: 1, Mode: 'vscode', Id: currentId });
+  await assert.rejects(f.controller.connect(require('node:crypto').randomUUID()), /disconnected/);
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.count(), 0);
+  assert.equal((await usage.readJson(f.controller.configPath)).Id, currentId);
+});
+
+test('Command Palette retry shares the widget pairing and account mismatch remains an error', async t => {
+  const f = await fixture(t);
+  const currentId = require('node:crypto').randomUUID();
+  await usage.atomicJson(f.controller.configPath, { Schema: 1, Mode: 'vscode', Id: currentId });
+  assert.equal(await f.controller.connect(), true);
+  assert.equal((await usage.readJson(f.controller.snapshotPath)).ConnectionId, currentId);
+  f.vscode.authentication.getSession = async () => ({ ...f.session, account: { id: 'other-account', label: 'other-example' } });
+  await assert.rejects(f.controller.connect(), /account_mismatch/);
+  assert.equal(f.count(), 1);
+});
+
+test('Changing the widget source during approval prevents saving the old connection', async t => {
+  const f = await fixture(t);
+  const currentId = require('node:crypto').randomUUID();
+  await usage.atomicJson(f.controller.configPath, { Schema: 1, Mode: 'vscode', Id: currentId });
+  f.vscode.authentication.getSession = async () => {
+    await usage.atomicJson(f.controller.configPath, { Schema: 1, Mode: 'direct', Id: require('node:crypto').randomUUID() });
+    return f.session;
+  };
+  await assert.rejects(f.controller.connect(currentId), /disconnected/);
+  assert.equal(f.context.globalState.get('connection'), undefined);
+  assert.equal(f.count(), 0);
+  assert.equal((await usage.readJson(f.controller.configPath)).Mode, 'direct');
+});
+
+test('Local diagnostics contain only a safe stage, code, version and time', async t => {
+  const f = await fixture(t);
+  const logs = [];
+  await diagnostics.record(f.folder, 'private-stage-fixture', f.session.accessToken, line => logs.push(line));
+  const data = await usage.readJson(path.join(f.folder, 'copilot-vscode-diagnostics.json'));
+  assert.deepEqual(Object.keys(data).sort(), ['Code', 'Schema', 'Stage', 'Updated', 'Version']);
+  assert.equal(data.Stage, 'sign_in'); assert.equal(data.Code, 'setup_failed');
+  assert.ok(!JSON.stringify([data, logs]).includes(f.session.accessToken));
+  assert.ok(!JSON.stringify([data, logs]).includes('private-stage-fixture'));
+  assert.equal(diagnostics.classify({ code: 'EACCES', message: f.session.accessToken }), 'storage_denied');
+  assert.equal(new diagnostics.SetupError('save', new Error(f.session.accessToken)).message, 'storage_failed');
 });

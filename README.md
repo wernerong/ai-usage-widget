@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.14.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.14.1](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.14.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.14.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.14.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.14.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.14.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.14.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -245,6 +245,8 @@ GitHub Actions builds and runs parsing and headless UI checks on Windows, Intel 
 ## Copilot Business through VS Code
 
 Choose **Connections → Copilot → Connect through VS Code**. The widget installs the bundled connection, opens VS Code, and enables the Copilot provider. Select the GitHub account that has your company seat and approve the standard VS Code request once. No GitHub token needs to be copied or exported. The companion can also be installed from the `AIUsageWidget-Copilot-VSCode.vsix` release asset via VS Code's **Install from VSIX…** action; then run **AI Usage Widget: Connect Copilot Account** and enable Copilot in the widget.
+
+If VS Code asks for a reload after a companion update, run **Developer: Reload Window** there, then **AI Usage Widget: Connect Copilot Account**. Choose **Allow** in the standard GitHub access prompt. Setup failures identify the failed step; **Show details** opens the local **AI Usage Widget — Copilot** Output log. This log contains only fixed step/error codes, companion version and time. Retrying keeps the widget's current pairing.
 
 The connection supports desktop VS Code 1.120 or later on Windows/macOS, including local UI sessions attached to WSL, SSH or dev containers. Select the same account you use for Copilot in that VS Code profile. GitHub.com and configured GHE.com cloud accounts are supported; Enterprise Server, browser-only VS Code, and company policies that prohibit local extensions or the requested access are outside this connection. Standard VS Code install locations are detected automatically. For custom/portable locations, use the VSIX installation route.
 

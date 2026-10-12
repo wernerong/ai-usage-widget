@@ -2,7 +2,7 @@
   "name": "ai-usage-widget-copilot",
   "displayName": "AI Usage Widget — Copilot Connection",
   "description": "Share Copilot usage with your local floating AI Usage Widget using your approved VS Code GitHub sign-in.",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "publisher": "wernerong",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/wernerong/ai-usage-widget", "directory": "vscode-extension" },

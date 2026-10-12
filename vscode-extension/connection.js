@@ -2,15 +2,17 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
 const usage = require('./usage');
+const diagnostics = require('./diagnostics');
 
 const scopes = [['read:user'], ['user:email'], ['read:user', 'user:email', 'repo', 'workflow']];
 const errors = new Set(['signed_out', 'unauthorized', 'forbidden', 'rate_limited', 'invalid_data', 'service_unavailable', 'disconnected']);
 class Connection {
-  constructor(vscode, context, folder, fetcher = fetch) {
+  constructor(vscode, context, folder, fetcher = fetch, log = () => {}) {
     this.vscode = vscode; this.context = context; this.folder = folder; this.fetcher = fetcher;
     this.configPath = path.join(folder, 'copilot-connection.json');
     this.snapshotPath = path.join(folder, 'copilot-vscode-usage.json');
     this.busy = false; this.alive = true; this.next = 0; this.controller = undefined;
+    this.log = log;
   }
   async owned(connection) {
     const config = await usage.readJson(this.configPath);
@@ -19,36 +21,57 @@ class Connection {
   async connect(pairingId) {
     if (this.busy) return false;
     this.busy = true;
+    let stage = 'pairing';
     try {
+      const initial = await usage.readJson(this.configPath);
+      if (pairingId && (initial?.Schema !== 1 || initial.Mode !== 'vscode' || initial.Id !== pairingId)) throw new Error('disconnected');
+      // Command Palette retries join the widget's current pairing instead of
+      // creating a competing connection while another approval is pending.
+      const id = pairingId || (initial?.Schema === 1 && initial.Mode === 'vscode' && /^[0-9a-f-]{36}$/i.test(initial.Id || '') ? initial.Id : crypto.randomUUID());
+      stage = 'accounts';
+      await diagnostics.record(this.folder, stage, 'started', this.log);
       const accounts = [];
       for (const provider of ['github', 'github-enterprise']) {
         let host;
         try { host = usage.hostForProvider(provider, this.vscode.workspace.getConfiguration('github-enterprise').get('uri')); }
         catch { continue; }
-        for (const account of await this.vscode.authentication.getAccounts(provider).catch(() => []))
+        for (const account of await this.vscode.authentication.getAccounts(provider).catch(async error => {
+          await diagnostics.record(this.folder, stage, diagnostics.classify(error), this.log); return [];
+        }))
           accounts.push({ label: account.label, description: host, provider, host, account });
       }
       let selected = accounts.length ? await this.vscode.window.showQuickPick(accounts, { title: 'Choose the GitHub account with your Copilot subscription', placeHolder: 'Use the same work account as Copilot in this VS Code profile' }) : undefined;
-      if (!selected && accounts.length) return false;
+      if (!selected && accounts.length) { await diagnostics.record(this.folder, stage, 'cancelled', this.log); return false; }
       // With no existing account, the standard VS Code GitHub provider handles
       // sign-in and consent. We never inspect another extension's secret store.
       if (!selected) selected = { provider: 'github', host: 'github.com', account: undefined };
+      stage = 'sign_in';
+      await diagnostics.record(this.folder, stage, 'started', this.log);
       let session;
       for (const desired of scopes) {
-        session = await this.vscode.authentication.getSession(selected.provider, desired, { silent: true, account: selected.account });
+        // A failed passive scope probe must not stop the explicit sign-in flow.
+        try { session = await this.vscode.authentication.getSession(selected.provider, desired, { silent: true, account: selected.account }); }
+        catch (error) { await diagnostics.record(this.folder, stage, diagnostics.classify(error), this.log); }
         if (session) { selected.scopes = desired; break; }
       }
       if (!session) {
         selected.scopes = scopes[0];
-        session = await this.vscode.authentication.getSession(selected.provider, scopes[0], { createIfNone: true, account: selected.account });
+        session = await this.vscode.authentication.getSession(selected.provider, scopes[0], { createIfNone: { detail: 'AI Usage Widget reads your Copilot allowance and shares only usage values with the floating widget on this computer.' }, account: selected.account });
       }
-      if (!session || (selected.account && session.account.id !== selected.account.id)) throw new Error('signed_out');
+      if (!session) throw new Error('signed_out');
+      if (selected.account && session.account.id !== selected.account.id) throw new Error('account_mismatch');
+      stage = 'pairing';
       const config = await usage.readJson(this.configPath);
-      if (pairingId && (config?.Schema !== 1 || config.Mode !== 'vscode' || config.Id !== pairingId)) throw new Error('disconnected');
-      const connection = { id: pairingId || crypto.randomUUID(), provider: selected.provider, host: selected.host, scopes: selected.scopes, account: { id: session.account.id, label: session.account.label } };
+      if (!this.alive || config?.Schema !== initial?.Schema || config?.Mode !== initial?.Mode || config?.Id !== initial?.Id) throw new Error('disconnected');
+      const connection = { id, provider: selected.provider, host: selected.host, scopes: selected.scopes, account: { id: session.account.id, label: session.account.label } };
+      stage = 'save';
       await this.context.globalState.update('connection', connection);
       await usage.atomicJson(this.configPath, { Schema: 1, Mode: 'vscode', Id: connection.id });
       this.next = 0;
+    } catch (error) {
+      const failure = new diagnostics.SetupError(stage, error);
+      await diagnostics.record(this.folder, stage, failure.message, this.log);
+      throw failure;
     } finally { this.busy = false; }
     return this.refresh(true);
   }
@@ -76,8 +99,10 @@ class Connection {
       const data = usage.sanitize(await response.json());
       if (!await this.owned(connection)) return false;
       await usage.atomicJson(this.snapshotPath, { Schema: 1, ConnectionId: connection.id, Account: session.account.label.replace(/[\r\n\t]/g, '').slice(0, 100), Host: connection.host, Fetched: new Date().toISOString(), Usage: data });
+      await diagnostics.record(this.folder, 'complete', 'ok', this.log);
       return true;
     } catch (error) {
+      await diagnostics.record(this.folder, 'refresh', errors.has(error?.message) ? error.message : 'service_unavailable', this.log);
       await this.writeError(connection, errors.has(error?.message) ? error.message : 'service_unavailable').catch(() => {});
       if (manual) await this.vscode.window.showWarningMessage('Copilot usage could not be shared. Check your GitHub sign-in and company access policy, then try again. No usage was estimated.');
       return false;

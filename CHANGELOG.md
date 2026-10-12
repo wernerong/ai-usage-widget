@@ -4,6 +4,13 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-10-12
+
+- Continue to the explicit GitHub consent flow if a passive session lookup fails, and explain what usage access the companion requests.
+- Keep the current widget pairing when retrying from the widget or VS Code Command Palette, and reject stale requests before asking for access.
+- Replace the generic setup warning with specific messages for declined consent, cancellation, account mismatches, missing authentication providers, and storage failures.
+- Add a local connection log containing only fixed steps/error codes, version and time; exclude credentials, accounts, raw exceptions and API responses.
+
 ## [1.14.0] - 2026-10-12
 
 - Add a bundled VS Code companion for Copilot Business and other Copilot accounts, with one-time approval of the selected work GitHub login and automatic background usage sharing.
