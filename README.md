@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.14.2](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.2)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.15.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.15.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.14.2-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.14.2-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.14.2-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.15.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.15.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.15.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -84,10 +84,10 @@ Choose from **Layout** in either the widget context menu or tray/menu bar menu. 
 | Usage bars | 6 | 340px-wide quota-centric view with labelled progress bars |
 | Focus mode | 1 | One provider's quotas, resets, free resets, and balance |
 | Status rail | 8 | 200px-wide overview with short quota labels and percentages |
-| Adaptive island | 3 | Compact at rest; hover one provider to expand its details |
+| Adaptive island | 3–5 (default 3) | Compact at rest; hover one provider to expand its details |
 | Spotlight island | 1 | One provider at a time in a slim horizontal island |
-| Island bar | 3 | Slim horizontal strip with progress bars |
-| Compact island | 3 | Minimal horizontal logos and percentages |
+| Island bar | 3–5 (default 3) | Slim horizontal strip with progress bars |
+| Compact island | 3–5 (default 3) | Minimal horizontal logos and percentages |
 
 Dimensions are logical pixels and follow display scaling. List rows are 48px; rail rows are 32px. The new layouts stay anchored at the top-left when paging/resizing, subject to screen boundaries. Switching density preserves the first visible provider where possible, and subscription changes clamp the current page. Focus can be navigated with the mouse wheel, footer arrows, or the existing **Provider page** menu.
 
@@ -115,6 +115,12 @@ Choose **Layout → Spotlight island** for a single named provider and its quota
 
 - **Continuous** uses one shared background and remains the default for existing users.
 - **Provider pills** uses separate neutral capsules with 5px gaps and a separate pager. This changes grouping, not the provider data or page capacity.
+
+Choose **Island providers per page → 3 providers (default), 4 providers, or 5 providers** from the widget or tray/menu bar menu. This saved setting applies to Island bar, Compact island, and Adaptive island. Choose four or five for a larger monitor; three remains the default for existing installations. Fewer enabled subscriptions use only the space they need. Changing capacity keeps the first visible provider in view and adjusts paging and width. Spotlight continues to show one provider; other layouts keep the capacities listed above.
+
+Five-provider Compact island with dark Provider pills, rendered by the application using sample readings:
+
+![Five providers in Compact island](docs/layouts/compact-island-five-providers.png)
 
 The style is saved independently and applies to all four islands, including the original Island Bar and Compact Island. All retain normal 40px height (adapted to the Windows taskbar), sharp provider logos, light/dark mode, opacity, always-on-top, dragging, tooltips, and existing screen constraints. Missing quotas stay `—`, unlimited quotas stay `∞`, and alert colours follow actual consumption even when showing remaining percentages. Long balances and exact reset dates stay in the tooltip.
 
@@ -291,7 +297,7 @@ Credentials are decrypted only in memory. The widget does not copy them into set
 
 ## Additional providers
 
-Enable only the subscriptions you use. **Connections** shows setup instructions, accepts subscription keys where needed, and connects the Antigravity status line. Three providers appear per page in every layout. Scroll over the widget, click **›** (the page label on cards), or use **Provider page → Next providers** to move between pages. All enabled providers continue refreshing in the background.
+Enable only the subscriptions you use. **Connections** shows setup instructions, accepts subscription keys where needed, and connects the Antigravity status line. Page capacity follows the selected layout; multi-provider islands default to three and can be configured up to five. Scroll over the widget, click **›** (the page label on cards), or use **Provider page → Next providers** to move between pages. All enabled providers continue refreshing in the background.
 
 | Provider | Source and allowance | Setup |
 |---|---|---|

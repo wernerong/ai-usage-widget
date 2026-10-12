@@ -15,7 +15,7 @@ internal sealed partial class ProviderSurface : Control, IDisposable
     private Bitmap? grokBotLogo;
     private int page;
     internal WidgetLayout Layout => monitor.Preferences.Layout;
-    internal int ProvidersPerPage => Layout.PageSize();
+    internal int ProvidersPerPage => Layout.PageSize(monitor.Preferences.IslandProvidersPerPage);
     internal int PageCount => Math.Max(1, (monitor.Enabled.Length + ProvidersPerPage - 1) / ProvidersPerPage);
     internal int Page => Math.Clamp(page, 0, PageCount - 1);
     internal ProviderDefinition[] VisibleProviders => monitor.Enabled.Skip(Page * ProvidersPerPage).Take(ProvidersPerPage).ToArray();

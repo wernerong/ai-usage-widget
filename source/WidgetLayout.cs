@@ -19,7 +19,8 @@ internal static class WidgetLayouts
         or WidgetLayout.AdaptiveIsland or WidgetLayout.SpotlightIsland;
     internal static bool IsAdditional(this WidgetLayout layout) => layout is WidgetLayout.CompactList or WidgetLayout.TileGrid
         or WidgetLayout.UsageBars or WidgetLayout.Focus or WidgetLayout.StatusRail;
-    internal static int PageSize(this WidgetLayout layout) => layout switch
+    internal static bool HasIslandPageSize(this WidgetLayout layout) => layout is WidgetLayout.IslandBar or WidgetLayout.CompactIsland or WidgetLayout.AdaptiveIsland;
+    internal static int PageSize(this WidgetLayout layout, int islandProvidersPerPage = 3) => layout.HasIslandPageSize() ? Math.Clamp(islandProvidersPerPage, 3, 5) : layout switch
     {
         WidgetLayout.CompactList or WidgetLayout.TileGrid or WidgetLayout.UsageBars => 6,
         WidgetLayout.Focus or WidgetLayout.SpotlightIsland => 1, WidgetLayout.StatusRail => 8, _ => 3

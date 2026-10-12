@@ -18,7 +18,7 @@ internal static class IslandChecks
         foreach (var layout in new[] { WidgetLayout.IslandBar, WidgetLayout.CompactIsland, WidgetLayout.AdaptiveIsland, WidgetLayout.SpotlightIsland })
         {
             var old = JsonSerializer.Deserialize<Preferences>($$"""{"Layout":"{{layout}}","X":123,"Y":47,"DarkMode":true,"AutomaticUpdates":false} """)!;
-            Check(old.Layout == layout && old.IslandStyle == IslandStyle.Continuous && old.X == 123 && old.DarkMode && !old.AutomaticUpdates, "old settings retain layout and safely default style");
+            Check(old.Layout == layout && old.IslandStyle == IslandStyle.Continuous && old.IslandProvidersPerPage == 3 && old.X == 123 && old.DarkMode && !old.AutomaticUpdates, "old settings retain layout and safely default style/page capacity");
             foreach (var style in Enum.GetValues<IslandStyle>())
             {
                 old.IslandStyle = style;
@@ -33,6 +33,15 @@ internal static class IslandChecks
         Check(WidgetLayouts.FromArguments(["--adaptive-island"], WidgetLayout.Focus) == WidgetLayout.AdaptiveIsland, "adaptive CLI");
         Check(WidgetLayouts.FromArguments(["--spotlight-island"], WidgetLayout.Focus) == WidgetLayout.SpotlightIsland, "spotlight CLI");
         Check(WidgetLayout.SpotlightIsland.PageSize() == 1 && WidgetLayout.AdaptiveIsland.PageSize() == 3, "new island page sizes");
+        foreach (var capacity in new[] { 3, 4, 5 })
+        {
+            var restored = JsonSerializer.Deserialize<Preferences>(JsonSerializer.Serialize(new Preferences { IslandProvidersPerPage = capacity, X = -50, Y = 100, DarkMode = true }))!;
+            Check(restored.IslandProvidersPerPage == capacity && restored.X == -50 && restored.Y == 100 && restored.DarkMode, "island capacity survives settings round trip");
+            foreach (var layout in WidgetLayouts.MenuOrder)
+                Check(layout.PageSize(capacity) == (layout.HasIslandPageSize() ? capacity : layout.PageSize()), "capacity affects only multi-provider islands");
+        }
+        Check(JsonSerializer.Deserialize<Preferences>("{\"IslandProvidersPerPage\":0,\"DarkMode\":true}") is { IslandProvidersPerPage: 3, DarkMode: true }, "invalid low capacity preserves unrelated settings");
+        Check(JsonSerializer.Deserialize<Preferences>("{\"IslandProvidersPerPage\":99,\"Opacity\":0.7}") is { IslandProvidersPerPage: 5, Opacity: .7 }, "island capacity cannot exceed five");
         using var grok = new GrokProvider();
         var providers = Widget.CreateProviders(grok).Select(p => p with { Read = _ => Task.FromResult(Widget.Fixture(p)) }).ToArray();
         using var monitor = new UsageMonitor(new Preferences(), providers);
@@ -67,8 +76,10 @@ internal static class IslandChecks
             {
                 widget.SetLayout(layout);
                 Check(Find("Island style").IsEnabled == layout.IsIsland(), "style enabled only for island layout " + layout);
+                Check(Find("Island providers per page").IsEnabled == layout.HasIslandPageSize(), "page capacity menu is enabled only for multi-provider islands");
                 widget.RefreshNativeMenu();
                 Check(widget.NativeMenu.Items.OfType<NativeMenuItem>().Single(i => i.Header == "Island style").IsEnabled == layout.IsIsland(), "native style availability");
+                Check(widget.NativeMenu.Items.OfType<NativeMenuItem>().Single(i => i.Header == "Island providers per page").IsEnabled == layout.HasIslandPageSize(), "native capacity availability");
             }
             foreach (var count in new[] { 1, 2, 3, 4, 13 })
             foreach (var layout in WidgetLayouts.MenuOrder.Where(l => l.IsIsland()))
@@ -107,6 +118,65 @@ internal static class IslandChecks
                 }
                 Check(seen.SetEquals(providers.Take(count).Select(p=>p.Id)), "all enabled providers reachable");
             }
+            foreach (var capacity in new[] { 3, 4, 5 })
+            foreach (var count in new[] { 1, 3, 4, 5, 6, 7, 13 })
+            foreach (var layout in WidgetLayouts.MenuOrder.Where(l => l.HasIslandPageSize()))
+            foreach (var style in Enum.GetValues<IslandStyle>())
+            {
+                SelectCount(count); widget.SetLayout(layout); widget.SetIslandStyle(style);
+                var capacityItem = Find("Island providers per page").Items.OfType<MenuItem>().Single(i => i.Header?.ToString() == (capacity == 3 ? "3 providers (default)" : $"{capacity} providers"));
+                capacityItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+                Check(monitor.Preferences.IslandProvidersPerPage == capacity && surface.ProvidersPerPage == capacity, "menu changes saved capacity and active page size");
+                Check(Find("Island providers per page").Items.OfType<MenuItem>().Count(i => i.IsChecked) == 1, "capacity menu choices are exclusive");
+                widget.RefreshNativeMenu();
+                var nativeCapacity = widget.NativeMenu.Items.OfType<NativeMenuItem>().Single(i => i.Header == "Island providers per page");
+                Check(nativeCapacity.Menu!.Items.OfType<NativeMenuItem>().Single(i => i.IsChecked).Header == capacityItem.Header?.ToString(), "native capacity selection follows context menu");
+                Check(surface.PageCount == (count + capacity - 1) / capacity, "configured page count follows enabled providers");
+                surface.ShowProvider(providers[0].Id); widget.SetPercentage(false);
+                var seen = new HashSet<string>();
+                for (var page = 0; page < surface.PageCount; page++)
+                {
+                    var expected = providers.Take(count).Skip(page * capacity).Take(capacity).ToArray();
+                    Check(surface.VisibleProviders.SequenceEqual(expected), "configured pages keep provider order without gaps");
+                    Check(widget.Width == surface.DesiredWidgetSize.Width && widget.Height == surface.IslandHeight, "capacity resizes the island using shared geometry");
+                    foreach (var (provider, bounds) in surface.IslandProviderRegions)
+                    {
+                        seen.Add(provider.Id);
+                        Check(surface.ProviderAt(bounds.Center) == provider && bounds.Right <= widget.Width, "fourth and fifth providers render and hit-test within the window");
+                    }
+                    if (surface.PageCount > 1)
+                        Check(surface.PageDirectionAt(surface.IslandPagerBounds.Center) == 1 && surface.ProviderAt(surface.IslandPagerBounds.Center) == null, "configured pager remains separate from providers");
+                    foreach (var dark in new[] { false, true })
+                    {
+                        widget.SetDarkMode(dark);
+                        var pixels = Pixels(1.5);
+                        Check(pixels[3] == 0 && pixels.Any(v => v != 0), "four/five provider rendering retains transparency at display scaling");
+                    }
+                    widget.ChangePage(1);
+                }
+                Check(seen.SetEquals(providers.Take(count).Select(p => p.Id)) && surface.Page == 0, "configured pages reach every provider and wrap");
+                if (count == 13)
+                {
+                    surface.ShowProvider(providers[12].Id); widget.SetPercentage(false);
+                    var anchor = surface.VisibleProviders[0];
+                    widget.SetIslandProvidersPerPage(capacity == 5 ? 3 : 5);
+                    Check(surface.VisibleProviders.Contains(anchor) && surface.Page < surface.PageCount, "density changes preserve the first visible provider on partial final pages");
+                }
+            }
+            SelectCount(7); widget.SetLayout(WidgetLayout.AdaptiveIsland); widget.SetIslandProvidersPerPage(5);
+            widget.SetAdaptiveHover(providers[4].Id);
+            Check(surface.HoveredIslandProviderId == providers[4].Id && widget.Width == surface.DesiredWidgetSize.Width, "fifth provider can expand in adaptive island");
+            widget.SetIslandProvidersPerPage(4);
+            Check(surface.HoveredIslandProviderId == null && surface.VisibleProviders.Length == 4, "density changes clear expanded hover before resizing");
+            widget.ChangePage(1); widget.ChangePage(-1);
+            Check(surface.Page == 0, "next/previous paging remains valid after capacity changes");
+            widget.SetIslandProvidersPerPage(5); widget.SetLayout(WidgetLayout.SpotlightIsland);
+            Check(surface.VisibleProviders.Length == 1, "spotlight keeps its single-provider layout");
+            widget.SetLayout(WidgetLayout.DetailedCards);
+            Check(surface.VisibleProviders.Length == 3 && monitor.Preferences.IslandProvidersPerPage == 5, "other layouts retain their density without forgetting island capacity");
+            widget.SetLayout(WidgetLayout.CompactIsland); widget.SetIslandStyle(IslandStyle.ProviderPills); widget.SetDarkMode(true);
+            widget.SaveRender("render-island-five-providers.png");
+            widget.SetIslandProvidersPerPage(3);
             SelectCount(4); widget.SetLayout(WidgetLayout.AdaptiveIsland);
             foreach (var style in Enum.GetValues<IslandStyle>())
             {

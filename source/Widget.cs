@@ -184,6 +184,8 @@ internal sealed class Widget : Window
             new("Island style", Enabled: prefs.Layout.IsIsland(), Children: [
                 new("Continuous", () => SetIslandStyle(IslandStyle.Continuous), prefs.IslandStyle == IslandStyle.Continuous, Radio: true),
                 new("Provider pills", () => SetIslandStyle(IslandStyle.ProviderPills), prefs.IslandStyle == IslandStyle.ProviderPills, Radio: true)]),
+            new("Island providers per page", Enabled: prefs.Layout.HasIslandPageSize(), Children: new[] { 3, 4, 5 }
+                .Select(n => new MenuChoice(n == 3 ? "3 providers (default)" : $"{n} providers", () => SetIslandProvidersPerPage(n), prefs.IslandProvidersPerPage == n, Radio: true)).ToArray()),
             new("Dark mode", () => SetDarkMode(!prefs.DarkMode), prefs.DarkMode),
             new("Always on top", () => { prefs.Pinned = Topmost = !prefs.Pinned; taskbarOverlay?.EnsureAboveTaskbar(); SavePreferences(); BuildMenus(); }, prefs.Pinned),
             new("Percentage display", Children: [new("Percentage remaining", () => SetPercentage(false), !prefs.ShowUsed, Radio: true), new("Percentage used", () => SetPercentage(true), prefs.ShowUsed, Radio: true)]),
@@ -286,7 +288,7 @@ internal sealed class Widget : Window
         if (await dialog.ShowDialog<bool>(this))
         {
             Monitor.Reconnect(provider); SetProvider(provider, true);
-            ChangePage(Array.FindIndex(Monitor.Enabled, p => p.Id == provider.Id) / 3 - Surface.Page);
+            ChangePage(Array.FindIndex(Monitor.Enabled, p => p.Id == provider.Id) / Surface.ProvidersPerPage - Surface.Page);
             await RefreshUsage();
         }
     }
@@ -321,6 +323,15 @@ internal sealed class Widget : Window
         SetAdaptiveHover(null);
         Monitor.Preferences.IslandStyle = style;
         if (Monitor.Preferences.Layout.IsIsland()) ApplyLayout(true);
+        SavePreferences(); BuildMenus(); UpdateDisplay();
+    }
+    internal void SetIslandProvidersPerPage(int count)
+    {
+        var anchor = Surface.VisibleProviders.FirstOrDefault()?.Id;
+        SetAdaptiveHover(null);
+        Monitor.Preferences.IslandProvidersPerPage = count;
+        Surface.ShowProvider(anchor);
+        if (Monitor.Preferences.Layout.HasIslandPageSize()) ApplyLayout(true);
         SavePreferences(); BuildMenus(); UpdateDisplay();
     }
     internal void SetLayout(WidgetLayout layout)

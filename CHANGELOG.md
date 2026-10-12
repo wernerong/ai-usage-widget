@@ -4,6 +4,13 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-10-12
+
+- Add a saved Island providers per page menu with three (default), four, and five provider choices for Island bar, Compact island, and Adaptive island.
+- Resize and repaginate immediately while keeping the first visible provider in view, clearing temporary hover expansion, and preserving the capacities of other layouts.
+- Use the current layout's page size when revealing a newly connected provider, including configured island pages.
+- Check both island styles, all three capacities, partial pages, fourth/fifth provider hit testing, light/dark rendering, hover changes and persisted settings.
+
 ## [1.14.2] - 2026-10-12
 
 - Make direct GitHub sign-in the Copilot connection flow. Reuse Git Credential Manager, verify the selected GitHub account and subscription, and refresh without an open editor or companion extension.
