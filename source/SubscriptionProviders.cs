@@ -71,6 +71,8 @@ internal static class CopilotProvider
 {
     internal static async Task<Reading> Read(CancellationToken ct)
     {
+        var choice = await ProviderApi.ReadJson(CopilotVSCode.ConnectionPath, ct);
+        if (Json.Str(choice, "Mode") == "direct" && Json.Str(choice, "Auth") == "gcm") return await CopilotGitHub.Read(choice, ct);
         if (await CopilotVSCode.Read(ct) is { } snapshot) return snapshot;
         var token = await ProviderApi.Saved("copilot");
         if (token == null)

@@ -31,6 +31,7 @@ internal static class UiChecks
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
         AdditionalProviderChecks.Run().GetAwaiter().GetResult();
         CopilotBusinessChecks.Run();
+        CopilotGitHubChecks.Run().GetAwaiter().GetResult();
         AutomaticUpdateChecks.Run().GetAwaiter().GetResult();
         AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         CopilotBusinessUiChecks.Run();

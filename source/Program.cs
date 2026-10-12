@@ -31,6 +31,11 @@ internal static class Program
             if (args.Contains("--verify-copilot-package")) return File.Exists(Path.Combine(AppContext.BaseDirectory, CopilotVSCode.PackageName)) ? 0 : 4;
             if (args.Length == 2 && args[0] == "--update-smoke") return UpdateSmoke.Run(args[1]).GetAwaiter().GetResult();
             if (args.Length == 2 && args[0] == "--write-update-agent") return UpdateSmoke.WriteLaunchAgent(args[1]);
+            if (args.Length == 2 && args[0] == "--connect-copilot-github")
+            {
+                CopilotGitHub.Connect(args[1], CancellationToken.None).GetAwaiter().GetResult();
+                return 0;
+            }
             if (args.Contains("--self-test")) { Checks.Run(); MonitorChecks.Run().GetAwaiter().GetResult(); return 0; }
             if (args.Contains("--diagnose"))
             {

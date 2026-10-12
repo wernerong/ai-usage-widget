@@ -4,6 +4,13 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.14.2] - 2026-10-12
+
+- Make direct GitHub sign-in the Copilot connection flow. Reuse Git Credential Manager, verify the selected GitHub account and subscription, and refresh without an open editor or companion extension.
+- Show GitHub's reported whole-number credit percentage with the actual consumed credits, allowance, monthly reset and account in the details.
+- Pin the verified account ID and source, prevent background sign-in prompts, and keep tokens in the existing Git credential store and process memory.
+- Validate the direct reader against the live Business dashboard, plus account mismatch, credential sanitization, source switching and all layout regression checks.
+
 ## [1.14.1] - 2026-10-12
 
 - Continue to the explicit GitHub consent flow if a passive session lookup fails, and explain what usage access the companion requests.

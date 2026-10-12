@@ -14,7 +14,7 @@ internal sealed class ConnectionDialog : Window
         "cursor" => "Install Cursor CLI and run agent login. The widget reads its subscription login on this computer, including the selected team. Editor-only and API-key logins are not currently supported.",
         "gemini" => "Run Gemini CLI and choose Sign in with Google. The widget reads its cached Google login and Code Assist quotas. Open Gemini CLI to renew expired tokens. Gemini web chat, API keys, and Vertex billing are separate allowances.",
         "antigravity" => "Connect the documented Antigravity CLI status line, then restart agy and run /usage. Only quota values are saved. The widget shows the last reported quota and marks it stale after 3 minutes. Existing custom status lines are preserved; see the README to chain them.",
-        "copilot" => "Connect through VS Code to use the GitHub account with your Copilot subscription. Approve access once in VS Code and keep it open for live usage. Business accounts show GitHub's reported credit budget or No personal cap. The CLI / saved-token connection remains available below.",
+        "copilot" => "Connect your GitHub account to read Copilot usage directly. Your editor can be closed. Use the GitHub username with your Copilot subscription. Git Credential Manager reuses your existing sign-in or opens GitHub's approval flow. Business accounts show GitHub's reported credit budget or No cap. A saved-token / GitHub CLI connection is also available below.",
         _ => "Enter your coding-plan subscription API key. Select the provider for the region where you subscribed: CN is mainland China; the unmarked provider is international. Keys are saved in Windows Credential Manager or macOS Keychain, never widget settings."
     };
     internal ConnectionDialog(ProviderDefinition provider)
@@ -26,19 +26,21 @@ internal sealed class ConnectionDialog : Window
         stack.Children.Add(new TextBlock { Text = Instructions(provider.Id), TextWrapping = TextWrapping.Wrap });
         if (provider.Id == "copilot")
         {
-            var connect = new Button { Content = "Connect through VS Code", HorizontalAlignment = HorizontalAlignment.Stretch };
+            var account = new TextBox { Watermark = "GitHub username (optional)" };
+            try { using var choice = System.Text.Json.JsonDocument.Parse(File.ReadAllText(CopilotVSCode.ConnectionPath)); account.Text = Json.Str(choice.RootElement, "Account"); } catch { }
+            var connect = new Button { Content = "Connect GitHub account", HorizontalAlignment = HorizontalAlignment.Stretch };
             var progress = new TextBlock { TextWrapping = TextWrapping.Wrap };
             var stop = new CancellationTokenSource(); Closed += (_, _) => { stop.Cancel(); stop.Dispose(); };
             connect.Click += async (_, _) =>
             {
-                connect.IsEnabled = false; progress.Text = "Installing the connection in VS Code…";
-                try { await CopilotVSCode.InstallAndConnect(stop.Token); Close(true); }
-                catch (OperationCanceledException) { progress.Text = "Connection installation was cancelled. Try again when VS Code is ready."; }
+                connect.IsEnabled = false; progress.Text = "Connecting to GitHub and checking your Copilot usage…";
+                try { await CopilotGitHub.Connect(account.Text, stop.Token); Close(true); }
+                catch (OperationCanceledException) { progress.Text = "GitHub connection was cancelled."; }
                 catch (InvalidOperationException ex) { progress.Text = ex.Message; }
-                catch { progress.Text = "Could not connect VS Code. Check its installation and your company's extension policy."; }
+                catch { progress.Text = "Could not connect GitHub. Check your Git credential setup and account access."; }
                 finally { connect.IsEnabled = true; }
             };
-            stack.Children.Add(connect); stack.Children.Add(progress);
+            stack.Children.Add(account); stack.Children.Add(connect); stack.Children.Add(progress);
         }
         var credential = new TextBox { PasswordChar = '●', Watermark = "Subscription key / authorized token" };
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };

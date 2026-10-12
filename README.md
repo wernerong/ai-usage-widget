@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.14.1](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.14.2](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.2)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.14.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.14.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.14.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.14.2-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.14.2-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.14.2-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -242,21 +242,23 @@ Exit the running widget before render/diagnostic checks. Render outputs require 
 
 GitHub Actions builds and runs parsing and headless UI checks on Windows, Intel macOS, and Apple Silicon macOS. It packages versioned Windows and Mac ZIPs as workflow artifacts. Native rendering, authentication, installation, and login behavior are separate manual smoke checks. Version tags build installers, run installation smoke checks, and publish installer downloads and SHA-256 checksums in a GitHub release. Normal branch builds retain workflow artifacts.
 
-## Copilot Business through VS Code
+## Copilot Business directly from GitHub
 
-Choose **Connections → Copilot → Connect through VS Code**. The widget installs the bundled connection, opens VS Code, and enables the Copilot provider. Select the GitHub account that has your company seat and approve the standard VS Code request once. No GitHub token needs to be copied or exported. The companion can also be installed from the `AIUsageWidget-Copilot-VSCode.vsix` release asset via VS Code's **Install from VSIX…** action; then run **AI Usage Widget: Connect Copilot Account** and enable Copilot in the widget.
+Choose **Connections → Copilot → Connect GitHub account**. Enter the GitHub username with your Copilot subscription, or leave it blank to use Git Credential Manager's account selection. The widget reuses your existing GitHub login, verifies the account and subscription, and reads usage directly from GitHub. If sign-in is needed, Git Credential Manager handles GitHub's normal approval flow. Your editor can be closed and no companion extension is required.
 
-If VS Code asks for a reload after a companion update, run **Developer: Reload Window** there, then **AI Usage Widget: Connect Copilot Account**. Choose **Allow** in the standard GitHub access prompt. Setup failures identify the failed step; **Show details** opens the local **AI Usage Widget — Copilot** Output log. This log contains only fixed step/error codes, companion version and time. Retrying keeps the widget's current pairing.
+Direct sign-in requires Git with a configured Git Credential Manager helper on Windows or macOS. Git for Windows offers it during installation. A saved Copilot-authorized token or existing GitHub CLI / Copilot CLI login can also be used through **Save and connect** below the GitHub button. No browser session or cookie database is imported. Signing into GitHub in a browser alone does not grant the widget API access.
 
-The connection supports desktop VS Code 1.120 or later on Windows/macOS, including local UI sessions attached to WSL, SSH or dev containers. Select the same account you use for Copilot in that VS Code profile. GitHub.com and configured GHE.com cloud accounts are supported; Enterprise Server, browser-only VS Code, and company policies that prohibit local extensions or the requested access are outside this connection. Standard VS Code install locations are detected automatically. For custom/portable locations, use the VSIX installation route.
+This direct connection uses GitHub.com. It verifies the returned account username and numeric ID before reading the quota, pins your selected account, and refuses to substitute another cached login. Company OAuth or Copilot policies can still reject access. Background refresh cannot open sign-in or account-selection prompts; use **Connect GitHub account** to reconnect when needed.
 
 The widget displays GitHub's own percentage, rounded to a whole number, with reset/account/plan details on hover. `percent_remaining` is authoritative; a fallback uses only the matching `quota_remaining` and `entitlement` basis. It never divides `credits_used` by a nominal Business plan allowance or assumes a personal allocation from the company pool. **No cap** means GitHub reports no personal cap; credits used are shown separately, and organization budgets can still restrict access. **Empty** identifies a depleted shared pool. **Blocked** identifies a zero allocated budget. Additional allowances are shown separately. Legacy request quotas keep their existing interpretation.
 
-Refreshes run about once a minute while VS Code is open. Closing VS Code preserves the last reading and original timestamp; it becomes **stale** after three minutes. Use **AI Usage Widget: Refresh Copilot Usage** or **Disconnect Copilot Account** in VS Code. **Save and connect** in the widget's token/CLI section selects the direct connection explicitly, so another VS Code profile cannot overwrite that choice. Selected accounts are pinned; signing out never silently switches to a personal account.
+Refreshes run about once a minute independently of your editor. Failed requests keep the last reading visible and mark it **stale** after three minutes. Choosing another source invalidates older in-flight responses. **Save and connect** selects the token/CLI source explicitly; **Connect GitHub account** selects the verified Git credential source.
 
-Only whitelisted quota/credit/reset fields, an account label and host are written atomically to the widget's per-user data folder. GitHub authentication stays in VS Code. Raw responses, tokens, email lists and organization memberships are excluded. Rate limits/backoff are respected. The companion is bundled in every installer and update package; widget upgrades refresh an already selected companion without reopening account selection. No Marketplace publisher token is needed. See the [companion README](vscode-extension/README.md) for installation and permission details.
+Git Credential Manager owns your credentials. The widget holds the retrieved token only in process memory and sends it only to fixed HTTPS GitHub API endpoints without following redirects. It saves the verified username, numeric account ID and source selection in its per-user data folder. Tokens, raw API responses, emails and organization memberships are excluded from settings and usage diagnostics. Child credential tracing is disabled and GitHub rate limits are respected.
 
-**Validation:** native VSIX installation, sanitization, source/account switching, sign-out, server backoff, disconnected in-flight requests, Business quota fixtures and all eleven layouts are checked. A live company quota requires the user's one-time VS Code approval and comparison with their actual Copilot dashboard; fixtures alone do not establish paid-account compatibility. The entitlement API is internal to GitHub/VS Code and can change.
+**Validation:** the direct Business reader has been tested against a live GitHub Copilot dashboard, including credits used, allocated allowance, percentage and monthly reset. Deterministic checks cover credential handling, account mismatches, source changes, prompt suppression and all eleven layouts. Other plans and enterprise policies still need live account validation. The entitlement API is internal to GitHub and can change.
+
+Existing VS Code companion connections from v1.14.0 remain supported for compatibility. The bundled VSIX is available for those users, and its [README](vscode-extension/README.md) describes setup. Choosing a direct GitHub connection disables that companion's ability to write usage for the widget.
 
 ## Adding a provider
 
@@ -295,7 +297,7 @@ Enable only the subscriptions you use. **Connections** shows setup instructions,
 |---|---|---|
 | Claude | Claude Code OAuth usage: 5-hour and weekly windows; model-specific limits in the tooltip | Install Claude Code and use `/login` with a Claude subscription. Windows reads its credentials file; Mac reads its Keychain entry, with the credentials-file fallback. |
 | Cursor | Cursor CLI dashboard: current included billing-cycle allowance and on-demand spend | Run `agent login`. Mac uses the CLI Keychain login; Windows uses `%APPDATA%\Cursor\auth.json`. The selected CLI team is respected. An editor-only login is not imported. |
-| Copilot | Monthly AI credits / Business budgets, separate additional allowances, or legacy premium/chat quotas | **Connections → Copilot → Connect through VS Code** installs the bundled companion and uses your approved work-account sign-in. CLI and saved-token connections remain available. No personal cap and depleted pools are identified explicitly. |
+| Copilot | Monthly AI credits / Business budgets, separate additional allowances, or legacy premium/chat quotas | **Connections → Copilot → Connect GitHub account** reads GitHub directly using Git Credential Manager. No open editor is needed. CLI and saved-token connections remain available. No personal cap and depleted pools are identified explicitly. |
 | Gemini | Gemini CLI / Code Assist per-model quotas | Run Gemini CLI and choose **Sign in with Google**, completing project setup if required. Reads `~/.gemini/oauth_creds.json` or the Mac `gemini-cli-oauth` Keychain item. Encrypted Windows Gemini storage is not currently imported. |
 | Antigravity | Latest quota snapshot from the documented Antigravity CLI status line | Choose **Connections → Antigravity → Connect status line**, restart `agy`, then run `/usage`. Does not scrape the Antigravity desktop app. |
 | Kimi | Kimi Code 5-hour and weekly subscription quotas | Enter a **Kimi Code subscription key** in Connections; Moonshot pay-as-you-go keys are separate. |
@@ -306,7 +308,7 @@ Gemini and Antigravity summarize the **most used reported model quota**, not a s
 
 Subscription readers do not make model-generation requests. Existing application OAuth refresh tokens remain owned by those applications: when a login expires, open the corresponding CLI/app to renew it and refresh the widget. The widget does not refresh or rewrite their login stores. Gemini web chat, Google AI Studio/Vertex API billing, Claude API billing, Cursor editor-only sign-in, and GitHub Enterprise Server are outside these readers' current scope.
 
-**Validation:** the added providers have deterministic parser, HTTP-error, rate-limit, UI, and OS credential-store checks. They have not been tested end-to-end with paid Claude, Cursor, Copilot, Google, Kimi, GLM, or MiniMax accounts. Several usage endpoints are internal vendor APIs and can change. Connection failures remain visible with setup instructions; a source-code test is not proof of live account compatibility.
+**Validation:** the added providers have deterministic parser, HTTP-error, rate-limit, UI, and OS credential-store checks. Direct GitHub Copilot Business usage has also been verified against a live account dashboard. Paid Claude, Cursor, Google, Kimi, GLM, MiniMax and other Copilot plans have not been tested end-to-end. Several usage endpoints are internal vendor APIs and can change. Connection failures remain visible with setup instructions; a source-code test is not proof of live account compatibility.
 
 Qwen Code uses the allowance of its configured backend rather than one universal Qwen subscription. Monitor Kimi/GLM/MiniMax here when configured as its backend. Alibaba Model Studio quotas and other providers without a verified usage contract are not presented as supported integrations. See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
 

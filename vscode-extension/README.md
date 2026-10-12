@@ -2,7 +2,9 @@
 
 Share your Copilot usage with the floating [AI Usage Widget](https://github.com/wernerong/ai-usage-widget) on Windows or macOS.
 
-In the widget, choose **Connections → Copilot → Connect through VS Code**. The widget installs this bundled extension, opens VS Code, and asks you to select the GitHub account with your Copilot subscription. Approve the standard VS Code authentication request once. No token needs to be copied into the widget.
+Since v1.14.2, **Connections → Copilot → Connect GitHub account** in the widget is the recommended setup. It reads GitHub directly through Git Credential Manager and works with the editor closed. This companion remains available for existing connections; choosing the direct GitHub source stops its sharing.
+
+For a companion connection, install the bundled VSIX from a GitHub release, then run **AI Usage Widget: Connect Copilot Account** in VS Code. Select the GitHub account with your Copilot subscription and approve the standard VS Code authentication request once. No token needs to be copied into the widget.
 
 You can also install the VSIX from the GitHub release through **Extensions → … → Install from VSIX…**, then run **AI Usage Widget: Connect Copilot Account** from the Command Palette and enable **Subscriptions → Copilot** in the widget. Select the same work account as Copilot in this VS Code profile. GitHub.com and configured GitHub Enterprise Cloud accounts on GHE.com are supported; arbitrary Enterprise Server hosts are not.
 
