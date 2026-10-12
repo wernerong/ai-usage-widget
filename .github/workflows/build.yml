@@ -3,7 +3,31 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
+  vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.25.0'
+      - name: Check and package the VS Code connection
+        shell: bash
+        run: |
+          mkdir -p dist
+          cd vscode-extension
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm test
+          pnpm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIUsageWidget-vscode
+          path: dist/*.vsix
+          if-no-files-found: error
   build:
+    needs: vscode
     strategy:
       fail-fast: false
       matrix:
@@ -17,6 +41,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: AIUsageWidget-vscode
+          path: dist
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -86,6 +114,7 @@ jobs:
           "$executable" --version
           "$executable" --self-test
           "$executable" --verify-update-install
+          test -s "$HOME/Applications/AI Usage Widget.app/Contents/MacOS/AIUsageWidget-Copilot-VSCode.vsix"
           installer -pkg "$package" -target CurrentUserHomeDirectory
           codesign --verify --deep --strict "$HOME/Applications/AI Usage Widget.app"
       - name: Check automatic upgrade and restart
@@ -123,7 +152,8 @@ jobs:
           test "$(find . -maxdepth 1 -name '*.pkg' | wc -l)" -eq 2
           test "$(find . -maxdepth 1 -name 'releases.*.json' | wc -l)" -eq 3
           test "$(find . -maxdepth 1 -name '*-full.nupkg' | wc -l)" -eq 3
-          sha256sum *.exe *.pkg *.nupkg releases.*.json > SHA256SUMS.txt
+          test "$(find . -maxdepth 1 -name '*.vsix' | wc -l)" -eq 1
+          sha256sum *.exe *.pkg *.nupkg *.vsix releases.*.json > SHA256SUMS.txt
           awk -v version="${GITHUB_REF_NAME#v}" '
             /^## \[/ { if (found) exit; found = index($0, "[" version "]") > 0; next }
             found { print }
@@ -133,6 +163,7 @@ jobs:
           - Windows x64: `windows-x64-setup.exe`
           - Mac Apple Silicon: `osx-arm64.pkg`
           - Mac Intel: `osx-x64.pkg`
+          - VS Code Copilot connection: bundled in the widget installers; also available as a separate `.vsix`.
 
           Install this version once to enable automatic updates. The widget checks stable GitHub Releases in the background, downloads the correct platform package, verifies it, and restarts briefly to apply it. Future releases require no manual reinstall. Preferences and provider logins are preserved. Updates can be paused in the widget menu. Quit the old widget before this one-time upgrade.
 
@@ -141,5 +172,5 @@ jobs:
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "AI Usage Widget $GITHUB_REF_NAME" --notes-file /tmp/release-notes.md --draft
           fi
-          gh release upload "$GITHUB_REF_NAME" *.exe *.pkg *.nupkg releases.*.json SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" *.exe *.pkg *.nupkg *.vsix releases.*.json SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

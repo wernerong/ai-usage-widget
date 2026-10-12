@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace UsageWidget;
 
-internal record Quota(string Label, double? Used, DateTimeOffset? Reset, string? Note = null);
+internal record Quota(string Label, double? Used, DateTimeOffset? Reset, string? Note = null, string? Status = null);
 internal record Reading(string Provider, Quota[] Quotas, string Balance, DateTimeOffset Fetched, int? FreeResets = null);
 
 internal static class Json

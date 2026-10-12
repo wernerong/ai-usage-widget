@@ -43,7 +43,7 @@ internal sealed class Widget : Window
         new("grok-bot", "Grok Bot", "https://cursor.com/dashboard", "Grok Bot desktop weekly usage", Color.Parse("#568FAD"), ["Weekly"], false, false, GrokBotProvider.Read),
         new("claude", "Claude", "https://claude.ai/settings/usage", "Claude Code subscription login", Color.Parse("#B46C50"), ["5 hours", "Weekly"], false, false, ClaudeProvider.Read),
         new("cursor", "Cursor", "https://cursor.com/dashboard/usage", "Cursor CLI included billing-cycle allowance", Color.Parse("#6B7C91"), ["Monthly"], false, false, CursorProvider.Read),
-        new("copilot", "Copilot", "https://github.com/settings/copilot", "GitHub Copilot monthly allowance", Color.Parse("#7374C4"), ["Premium", "Chat"], false, false, CopilotProvider.Read),
+        new("copilot", "Copilot", "https://github.com/settings/copilot", "GitHub Copilot monthly credits / legacy requests", Color.Parse("#7374C4"), ["Credits", "Additional"], false, false, CopilotProvider.Read),
         new("gemini", "Gemini", "https://geminicli.com/docs/quota-and-pricing/", "Gemini CLI / Code Assist model quotas; not Gemini web chat", Color.Parse("#5084D5"), ["Models"], false, false, GeminiProvider.Read),
         new("antigravity", "Antigravity", "https://antigravity.google/docs/cli/commands/usage/", "Latest Antigravity CLI status-line quota; run /usage to refresh", Color.Parse("#5F8CA4"), ["Models"], false, false, AntigravityProvider.Read),
         new("kimi", "Kimi", "https://www.kimi.com/code/console", "Kimi Code subscription", Color.Parse("#5878D0"), ["5 hours", "Weekly"], false, false, ct => CodingPlanProviders.Read("kimi", ct)),
@@ -112,6 +112,7 @@ internal sealed class Widget : Window
             {
                 var backend = new GithubWidgetUpdates();
                 if (backend.Available) AntigravityProvider.MigrateInstalledCommand();
+                _ = CopilotVSCode.UpdateInstalledConnection();
                 if (backend.Available)
                 {
                     try { PlatformServices.MigrateStartupForUpdates(); }
@@ -284,7 +285,9 @@ internal sealed class Widget : Window
         var dialog = new ConnectionDialog(provider);
         if (await dialog.ShowDialog<bool>(this))
         {
-            Monitor.Reconnect(provider); SetProvider(provider, true); await RefreshUsage();
+            Monitor.Reconnect(provider); SetProvider(provider, true);
+            ChangePage(Array.FindIndex(Monitor.Enabled, p => p.Id == provider.Id) / 3 - Surface.Page);
+            await RefreshUsage();
         }
     }
     internal void SetProvider(ProviderDefinition provider, bool enabled)
@@ -468,7 +471,7 @@ internal sealed class Widget : Window
             lines.Add($"Last successful refresh: {r.Fetched.LocalDateTime:ddd d MMM, HH:mm:ss}");
             foreach (var q in r.Quotas)
             {
-                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0}% used · {100-n:0}% left" : q.Note == "Unlimited" ? "unlimited" : "unavailable")}");
+                lines.Add($"{q.Label}: {(q.Used is { } n ? $"{n:0}% used · {100-n:0}% left" : q.Status == "No cap" ? "No personal cap" : q.Status ?? (q.Note == "Unlimited" ? "unlimited" : "unavailable"))}");
                 if (q.Reset != null) lines.Add($"Resets {q.Reset.Value.LocalDateTime:ddd d MMM, HH:mm:ss}");
                 if (q.Note != null) lines.Add(q.Note);
             }
@@ -501,7 +504,7 @@ internal sealed class Widget : Window
             else ApplyLayout(Monitor.Preferences.Layout is WidgetLayout.AdaptiveIsland or WidgetLayout.SpotlightIsland);
         }
         Surface.InvalidateVisual();
-        var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : "unavailable") ?? ["unavailable"])));
+        var summary = string.Join(" | ", Monitor.Enabled.Select(p => p.Name + " " + string.Join(" / ", Monitor.States[p.Id].Reading?.Quotas.Select(q => q.Used is { } n ? $"{(Monitor.Preferences.ShowUsed ? n : 100 - n):0}% {(Monitor.Preferences.ShowUsed ? "used" : "left")}" : q.Status == "No cap" ? "No personal cap" : q.Status ?? (q.Note == "Unlimited" ? "Unlimited" : "unavailable")) ?? ["unavailable"])));
         if (tray != null) tray.ToolTipText = summary.Length > 127 ? summary[..124] + "…" : summary;
         AutomationProperties.SetHelpText(Surface, string.Join("\n", Monitor.Enabled.Select(Details)));
         WriteHealth();

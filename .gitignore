@@ -4,6 +4,11 @@
 app/
 *.zip
 .vs/
+**/node_modules/
+*.vsix
+copilot-connection.json
+copilot-vscode-usage.json
+copilot-extension-version.txt
 *.user
 
 # Local credentials, configuration, and usage diagnostics

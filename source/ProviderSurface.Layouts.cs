@@ -55,7 +55,7 @@ internal sealed partial class ProviderSurface
     }
     internal double? DisplayPercentage(Quota? quota) => quota?.Note == "Unlimited" || quota?.Used is not { } used || !double.IsFinite(used)
         ? null : monitor.Preferences.ShowUsed ? Math.Clamp(used, 0, 100) : 100 - Math.Clamp(used, 0, 100);
-    internal string PercentageText(Quota? quota) => quota?.Note == "Unlimited" ? "∞" : DisplayPercentage(quota) is { } value ? $"{value:0}%" : "—";
+    internal string PercentageText(Quota? quota) => quota?.Status == "Unlimited" || quota?.Note == "Unlimited" ? "∞" : quota?.Status ?? (DisplayPercentage(quota) is { } value ? $"{value:0}%" : "—");
     internal Color QuotaColor(Color accent, Quota? quota, bool stale) => stale ? Amber
         : quota?.Used >= 90 ? Tone("#C14E4E", "#F18484") : quota?.Used >= 75 ? Amber : Accent(accent);
     internal Quota[] PrimaryQuotas(ProviderDefinition provider)

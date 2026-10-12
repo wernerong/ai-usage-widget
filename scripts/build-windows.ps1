@@ -1,6 +1,7 @@
 param([string]$Compiler)
 $ErrorActionPreference = 'Stop'
 $repoDir = Split-Path $PSScriptRoot -Parent
+if (!(Test-Path (Join-Path $repoDir 'dist/AIUsageWidget-Copilot-VSCode.vsix'))) { throw 'Package the VS Code connection first (pnpm install and pnpm run package in vscode-extension).' }
 $version = ([xml](Get-Content (Join-Path $repoDir 'source\UsageWidget.csproj'))).Project.PropertyGroup.Version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid application version.' }
 if (!$Compiler) {

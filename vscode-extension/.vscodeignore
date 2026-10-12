@@ -1,0 +1,5 @@
+node_modules/**
+tests/**
+pnpm-lock.yaml
+.vscodeignore
+**/*.vsix

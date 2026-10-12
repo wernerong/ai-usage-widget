@@ -43,6 +43,7 @@ internal sealed partial class ProviderSurface : Control, IDisposable
     internal Quota[] CompactQuotas(ProviderDefinition p)
     {
         var quotas = monitor.States[p.Id].Reading?.Quotas ?? [];
+        if (p.Id == "copilot" && quotas.FirstOrDefault() is { } main && (main.Used != null || main.Status != null || main.Note == "Unlimited")) return [main];
         var weekly = quotas.FirstOrDefault(q => q.Label == "Weekly") ?? new Quota("Weekly", null, null);
         var fiveHour = quotas.FirstOrDefault(q => q.Label == "5 hours" && q.Used is not null);
         if (p.QuotaLabels.Contains("Weekly")) return fiveHour != null ? [fiveHour, weekly] : [weekly];
@@ -169,7 +170,7 @@ internal sealed partial class ProviderSurface : Control, IDisposable
         if (value is > 0) Round(g, new(24, y + 19, 272 * value.Value / 100, 4), 2, color);
         Txt(g, Widget.ResetText(quota.Reset, DateTimeOffset.Now), 24, y + 27, 11, Muted);
     }
-    private static string Label(string value) => value switch { "5 hours" => "5h", "Weekly" => "Wk", "Monthly" => "Mo", "Premium" => "Prem", "Models" => "Quota", _ => value };
+    private static string Label(string value) => value switch { "5 hours" => "5h", "Weekly" => "Wk", "Monthly" => "Mo", "Premium" => "Prem", "Credits" => "Cr", "Additional" => "Extra", "Models" => "Quota", _ => value };
     private void Badge(DrawingContext g, ProviderDefinition p, double x)
     {
         var state = monitor.States[p.Id];
@@ -188,10 +189,10 @@ internal sealed partial class ProviderSurface : Control, IDisposable
         }
         if (p.QuotaLabels.Length > 1)
         {
-            Center($"{Label(p.QuotaLabels[0])}  {PercentageText(quotas.ElementAtOrDefault(0))}", 35, 14, Main, true);
-            Center($"{Label(p.QuotaLabels[1])}  {PercentageText(quotas.ElementAtOrDefault(1))}", 53, 11, Muted);
+            Center($"{Label(quotas.ElementAtOrDefault(0)?.Label ?? p.QuotaLabels[0])}  {PercentageText(quotas.ElementAtOrDefault(0))}", 35, 14, Main, true);
+            Center($"{Label(quotas.ElementAtOrDefault(1)?.Label ?? p.QuotaLabels[1])}  {PercentageText(quotas.ElementAtOrDefault(1))}", 53, 11, Muted);
             var free = p.HasFreeResets ? state.Reading?.FreeResets : null;
-            Center(state.Stale ? "STALE" : free > 0 ? $"↻ {free} free" : monitor.Preferences.ShowUsed ? "used" : "left", 70, 9, state.Stale ? Amber : Muted);
+            Center(state.Stale ? "STALE" : free > 0 ? $"↻ {free} free" : quotas.FirstOrDefault()?.Status is "No cap" or "Empty" or "Blocked" ? "Monthly credits" : monitor.Preferences.ShowUsed ? "used" : "left", 70, 9, state.Stale ? Amber : Muted);
         }
         else
         {

@@ -30,8 +30,10 @@ internal static class UiChecks
         GrokBotChecks.Run().GetAwaiter().GetResult();
         MacGrokBotChecks.Run().GetAwaiter().GetResult();
         AdditionalProviderChecks.Run().GetAwaiter().GetResult();
+        CopilotBusinessChecks.Run();
         AutomaticUpdateChecks.Run().GetAwaiter().GetResult();
         AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+        CopilotBusinessUiChecks.Run();
         IconChecks.Run();
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception("FAIL: " + name); count++; }

@@ -2,7 +2,7 @@
 
 A floating desktop widget for checking AI coding subscriptions and usage on Windows and macOS, built with C#/.NET and Avalonia.
 
-Current release: **[v1.13.1](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.13.1)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
+Current release: **[v1.14.0](https://github.com/wernerong/ai-usage-widget/releases/tag/v1.14.0)**. See [CHANGELOG.md](CHANGELOG.md) for history. The installed version appears at the bottom of the widget or tray/menu bar menu.
 
 ## Download and install
 
@@ -10,9 +10,9 @@ Download the installer for your computer from [the latest release](https://githu
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Windows 10/11, x64 | `AIUsageWidget-1.13.1-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
-| Mac, Apple Silicon | `AIUsageWidget-1.13.1-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
-| Mac, Intel | `AIUsageWidget-1.13.1-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Windows 10/11, x64 | `AIUsageWidget-1.14.0-windows-x64-setup.exe` | Run Setup, choose startup/shortcut options, and launch. |
+| Mac, Apple Silicon | `AIUsageWidget-1.14.0-osx-arm64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
+| Mac, Intel | `AIUsageWidget-1.14.0-osx-x64.pkg` | Run Installer, then open AI Usage Widget from your home Applications folder. |
 
 No .NET installation, repository checkout, or terminal command is needed. Provider sign-in requirements below still apply. Windows installs for the current user without administrator access and includes an uninstaller in Settings → Apps. Mac installs to `~/Applications`; turn on **Start at login** from the widget menu if desired. Quit the widget before this one-time upgrade. Existing preferences and provider logins are preserved. Versions 1.11.0 and later update automatically by default.
 
@@ -242,15 +242,29 @@ Exit the running widget before render/diagnostic checks. Render outputs require 
 
 GitHub Actions builds and runs parsing and headless UI checks on Windows, Intel macOS, and Apple Silicon macOS. It packages versioned Windows and Mac ZIPs as workflow artifacts. Native rendering, authentication, installation, and login behavior are separate manual smoke checks. Version tags build installers, run installation smoke checks, and publish installer downloads and SHA-256 checksums in a GitHub release. Normal branch builds retain workflow artifacts.
 
+## Copilot Business through VS Code
+
+Choose **Connections → Copilot → Connect through VS Code**. The widget installs the bundled connection, opens VS Code, and enables the Copilot provider. Select the GitHub account that has your company seat and approve the standard VS Code request once. No GitHub token needs to be copied or exported. The companion can also be installed from the `AIUsageWidget-Copilot-VSCode.vsix` release asset via VS Code's **Install from VSIX…** action; then run **AI Usage Widget: Connect Copilot Account** and enable Copilot in the widget.
+
+The connection supports desktop VS Code 1.120 or later on Windows/macOS, including local UI sessions attached to WSL, SSH or dev containers. Select the same account you use for Copilot in that VS Code profile. GitHub.com and configured GHE.com cloud accounts are supported; Enterprise Server, browser-only VS Code, and company policies that prohibit local extensions or the requested access are outside this connection. Standard VS Code install locations are detected automatically. For custom/portable locations, use the VSIX installation route.
+
+The widget displays GitHub's own percentage, rounded to a whole number, with reset/account/plan details on hover. `percent_remaining` is authoritative; a fallback uses only the matching `quota_remaining` and `entitlement` basis. It never divides `credits_used` by a nominal Business plan allowance or assumes a personal allocation from the company pool. **No cap** means GitHub reports no personal cap; credits used are shown separately, and organization budgets can still restrict access. **Empty** identifies a depleted shared pool. **Blocked** identifies a zero allocated budget. Additional allowances are shown separately. Legacy request quotas keep their existing interpretation.
+
+Refreshes run about once a minute while VS Code is open. Closing VS Code preserves the last reading and original timestamp; it becomes **stale** after three minutes. Use **AI Usage Widget: Refresh Copilot Usage** or **Disconnect Copilot Account** in VS Code. **Save and connect** in the widget's token/CLI section selects the direct connection explicitly, so another VS Code profile cannot overwrite that choice. Selected accounts are pinned; signing out never silently switches to a personal account.
+
+Only whitelisted quota/credit/reset fields, an account label and host are written atomically to the widget's per-user data folder. GitHub authentication stays in VS Code. Raw responses, tokens, email lists and organization memberships are excluded. Rate limits/backoff are respected. The companion is bundled in every installer and update package; widget upgrades refresh an already selected companion without reopening account selection. No Marketplace publisher token is needed. See the [companion README](vscode-extension/README.md) for installation and permission details.
+
+**Validation:** native VSIX installation, sanitization, source/account switching, sign-out, server backoff, disconnected in-flight requests, Business quota fixtures and all eleven layouts are checked. A live company quota requires the user's one-time VS Code approval and comparison with their actual Copilot dashboard; fixtures alone do not establish paid-account compatibility. The entitlement API is internal to GitHub/VS Code and can change.
+
 ## Adding a provider
 
 Definitions in `source/Widget.cs` supply a stable settings ID, name, usage URL, description, accent, quota labels, free-reset capability, default selection, and cancellable reader returning `Reading`. Add its logo to `source/Assets`. New integrations should default to opt-in. Compact badges support one or two quotas; other shapes require a matching layout.
 
-`UsageMonitor.cs` manages selection and refresh lifecycles, `ProviderSurface.cs` draws the shared UI, and `PlatformServices.cs` contains platform-specific startup and instance activation. Dependencies are pinned in the project and lockfiles.
+`UsageMonitor.cs` manages selection and refresh lifecycles, `ProviderSurface.cs` draws the shared UI, and `PlatformServices.cs` contains platform-specific startup and instance activation. Dependencies are pinned in the project and lockfiles. Package the companion first using `pnpm install --frozen-lockfile --ignore-scripts` and `pnpm run package` in `vscode-extension`, with Node 24 and pnpm 11.25.0. Desktop build scripts require the resulting VSIX in `dist`; CI builds it once and includes it on every platform.
 
 ## Versioning
 
-`<Version>` in `source/UsageWidget.csproj` is the source of truth for the application, assembly, and generated Mac bundle version. Use semantic versioning: major for breaking changes, minor for features, patch for fixes. Update this README and `CHANGELOG.md` with each version. Released versions receive an annotated Git tag named `vMAJOR.MINOR.PATCH`; development versions are not automatically tagged or published.
+`<Version>` in `source/UsageWidget.csproj` is the source of truth for the application, assembly, and generated Mac bundle version. Use semantic versioning: major for breaking changes, minor for features, patch for fixes. Update this README, `CHANGELOG.md`, and the matching version in `vscode-extension/package.json` with each version. Released versions receive an annotated Git tag named `vMAJOR.MINOR.PATCH`; development versions are not automatically tagged or published.
 
 ## Credits
 
@@ -279,7 +293,7 @@ Enable only the subscriptions you use. **Connections** shows setup instructions,
 |---|---|---|
 | Claude | Claude Code OAuth usage: 5-hour and weekly windows; model-specific limits in the tooltip | Install Claude Code and use `/login` with a Claude subscription. Windows reads its credentials file; Mac reads its Keychain entry, with the credentials-file fallback. |
 | Cursor | Cursor CLI dashboard: current included billing-cycle allowance and on-demand spend | Run `agent login`. Mac uses the CLI Keychain login; Windows uses `%APPDATA%\Cursor\auth.json`. The selected CLI team is respected. An editor-only login is not imported. |
-| Copilot | GitHub Copilot entitlement snapshots: premium and chat; unlimited shown as **∞** | Reuses a single local Copilot `hosts.json` / `apps.json` login or `gh auth login`. Connections can store a Copilot-authorized GitHub token. An arbitrary API token may lack access. |
+| Copilot | Monthly AI credits / Business budgets, separate additional allowances, or legacy premium/chat quotas | **Connections → Copilot → Connect through VS Code** installs the bundled companion and uses your approved work-account sign-in. CLI and saved-token connections remain available. No personal cap and depleted pools are identified explicitly. |
 | Gemini | Gemini CLI / Code Assist per-model quotas | Run Gemini CLI and choose **Sign in with Google**, completing project setup if required. Reads `~/.gemini/oauth_creds.json` or the Mac `gemini-cli-oauth` Keychain item. Encrypted Windows Gemini storage is not currently imported. |
 | Antigravity | Latest quota snapshot from the documented Antigravity CLI status line | Choose **Connections → Antigravity → Connect status line**, restart `agy`, then run `/usage`. Does not scrape the Antigravity desktop app. |
 | Kimi | Kimi Code 5-hour and weekly subscription quotas | Enter a **Kimi Code subscription key** in Connections; Moonshot pay-as-you-go keys are separate. |

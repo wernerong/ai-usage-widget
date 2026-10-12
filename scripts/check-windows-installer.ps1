@@ -25,6 +25,7 @@ if ($check.ExitCode -ne 0) { throw 'Installed self-test failed.' }
 Get-Content (Join-Path $destination 'current\checks.txt')
 $updaterCheck = Start-Process -FilePath $executable -ArgumentList '--verify-update-install' -WindowStyle Hidden -Wait -PassThru
 if ($updaterCheck.ExitCode -ne 0) { throw 'Installed updater is missing.' }
+if (!(Test-Path (Join-Path $destination 'current/AIUsageWidget-Copilot-VSCode.vsix'))) { throw 'Bundled Copilot connection is missing.' }
 Run-Setup
 $uninstaller = Join-Path $destination 'unins000.exe'
 $remove = Start-Process -FilePath $uninstaller -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -WindowStyle Hidden -Wait -PassThru

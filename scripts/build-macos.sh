@@ -2,6 +2,7 @@
 set -euo pipefail
 if [[ "$(uname -s)" != Darwin ]]; then echo 'Run this packaging script on macOS.' >&2; exit 1; fi
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+test -s "$repo_dir/dist/AIUsageWidget-Copilot-VSCode.vsix" || { echo 'Package the VS Code connection first (pnpm install and pnpm run package in vscode-extension).' >&2; exit 1; }
 rid="${1:-osx-$(uname -m)}"
 [[ "$rid" == osx-x86_64 ]] && rid=osx-x64
 case "$rid" in osx-arm64|osx-x64) ;; *) echo 'Choose osx-arm64 or osx-x64.' >&2; exit 1 ;; esac

@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>AIUsageWidget</AssemblyName>
-    <Version>1.13.1</Version>
+    <Version>1.14.0</Version>
     <UseAppHost>true</UseAppHost>
     <ApplicationIcon>Assets/widget.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
@@ -20,5 +20,6 @@
     <AvaloniaResource Include="Assets/*.ico" />
     <InternalsVisibleTo Include="UsageWidget.UiChecks" />
     <PackageReference Include="Velopack" Version="1.2.158" />
+    <Content Include="../dist/AIUsageWidget-Copilot-VSCode.vsix" Link="AIUsageWidget-Copilot-VSCode.vsix" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('../dist/AIUsageWidget-Copilot-VSCode.vsix')" />
   </ItemGroup>
 </Project>

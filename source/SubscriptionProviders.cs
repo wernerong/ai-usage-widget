@@ -71,6 +71,7 @@ internal static class CopilotProvider
 {
     internal static async Task<Reading> Read(CancellationToken ct)
     {
+        if (await CopilotVSCode.Read(ct) is { } snapshot) return snapshot;
         var token = await ProviderApi.Saved("copilot");
         if (token == null)
         {
@@ -114,6 +115,40 @@ internal static class CopilotProvider
             }
             return new(label, percent, Json.Date(Json.Get(item, "quota_reset_at")) ?? reset, unlimited ? "Unlimited" : null);
         }
-        return ProviderApi.Result("Copilot", [Window("premium_interactions", "Premium"), Window("chat", "Chat")], "GitHub Copilot allowance");
+        var premium = Json.Get(snapshot, "premium_interactions");
+        var tokenBilling = Json.Get(root, "token_based_billing").ValueKind == JsonValueKind.True || Json.Get(premium, "token_based_billing").ValueKind == JsonValueKind.True;
+        if (!tokenBilling) return ProviderApi.Result("Copilot", [Window("premium_interactions", "Premium"), Window("chat", "Chat")], "GitHub Copilot allowance");
+        if (Json.Str(root, "copilot_plan") == "free" && (premium.ValueKind != JsonValueKind.Object || Json.Num(premium, "entitlement") == 0))
+            premium = Json.Get(snapshot, "chat"); // Free plans can allocate credits to chat only.
+        var plan = Json.Str(root, "copilot_plan") switch { "business" => "Copilot Business", "enterprise" => "Copilot Enterprise", "free" => "Copilot Free", _ => "Copilot" };
+        double? credits = Json.Num(premium, "credits_used") is >= 0 and var used ? used : null;
+        var entitlement = Json.Num(premium, "entitlement");
+        var unlimited = Json.Get(premium, "unlimited").ValueKind == JsonValueKind.True;
+        var noPool = unlimited && Json.Get(premium, "has_quota").ValueKind == JsonValueKind.False;
+        var note = $"{plan} · monthly AI credits. Uses GitHub's reported allowance; company pool and budget policies can also constrain access.";
+        if (credits is { } consumed) note += $"\nCredits used: {consumed:0.##}";
+        if (!unlimited && entitlement is > 0) note += $"\nReported allowance: {entitlement:0.##} credits";
+        if (Json.Get(premium, "overage_permitted").ValueKind == JsonValueKind.False) note += "\nAdditional usage is disabled by policy.";
+        string? status = noPool ? "Empty" : unlimited ? "No cap" : entitlement == 0 ? "Blocked" : null;
+        double? percent = null;
+        if (!unlimited && entitlement != 0)
+        {
+            percent = ProviderApi.UsedFromRemaining(Json.Num(premium, "percent_remaining"));
+            // quota_remaining and entitlement share a denominator. credits_used
+            // does not: VS Code explicitly avoids dividing it by entitlement.
+            if (percent == null && Json.Num(premium, "quota_remaining") is { } remaining && entitlement is > 0)
+                percent = ProviderApi.Ratio(Math.Max(0, entitlement.Value - remaining), entitlement);
+        }
+        if (noPool) note += "\nThe organization's shared credit limit has been reached; no pool percentage was reported.";
+        else if (unlimited) note += "\nNo personal cap was reported. This is not an unlimited company credit pool.";
+        else if (entitlement == 0) note += "\nGitHub reported zero allocated credits; no percentage can be calculated.";
+        var main = new Quota("Credits", percent, Json.Date(Json.Get(premium, "quota_reset_at")) ?? reset, note, status);
+        var extraLimit = Json.Num(premium, "overage_entitlement");
+        var extraUsed = Json.Num(premium, "overage_count");
+        var extra = new Quota("Additional", ProviderApi.Ratio(extraUsed, extraLimit), main.Reset,
+            extraLimit is > 0 ? $"Additional usage: {extraUsed:0.##} / {extraLimit:0.##}. GitHub's additional allowance is separate from the main credits." : "No additional usage budget was reported.");
+        if (main.Used == null && main.Status == null && extra.Used == null)
+            throw new InvalidOperationException("Copilot did not return a supported credit allowance. Check your plan and connection; no percentage is estimated.");
+        return new("Copilot", [main, extra], credits is { } amount ? $"Credits used  {amount:0.##}" : plan + " allowance", DateTimeOffset.Now);
     }
 }

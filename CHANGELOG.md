@@ -4,6 +4,14 @@ User-visible changes are recorded here, newest first. Versions follow semantic v
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-12
+
+- Add a bundled VS Code companion for Copilot Business and other Copilot accounts, with one-time approval of the selected work GitHub login and automatic background usage sharing.
+- Show whole-number GitHub-reported AI-credit budget percentages, separate additional allowances, no personal cap, depleted shared pools, and zero-budget blocking; preserve legacy request quotas.
+- Keep credentials inside VS Code and write only filtered quota/reset/account snapshots outside the repository. Pin account/source selection, respect server backoff, and retain original freshness when VS Code closes.
+- Include the VSIX in all platform installers, update packages, and GitHub Releases, and update already selected companions with the widget.
+- Check parser, bridge, account switching, sign-out, file replacement, all eleven layouts, and native VSIX installation. Live Business-account comparison still requires the user's VS Code approval.
+
 ## [1.13.1] - 2026-10-03
 
 - Replace the ChatGPT/OpenAI knot used for Codex with the dedicated Codex terminal mark in every layout, island style, and theme. Keep native-scale vector rendering for sharp Windows and Mac icons.
